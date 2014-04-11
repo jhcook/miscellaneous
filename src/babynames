@@ -1,0 +1,48 @@
+#!/usr/bin/env python
+
+# Determine the total number of male children within the top 1000 results that
+# were given the specific name during the date period specified.
+#
+# Copyright (C) 2013 Justin Cook
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import argparse
+from bn import *
+
+parser = argparse.ArgumentParser(description='Baby name popularity by year')
+parser.add_argument('name', metavar='NAME', help='Name to search for')
+parser.add_argument('year1', metavar='FIRST_YEAR', help='Year to begin search')
+parser.add_argument('year2', metavar='LAST_YEAR', help='Last year of search')
+args = parser.parse_args()
+
+total = 0
+req = Remote.Request()
+cac = Remote.Cache()
+year = int(args.year1)
+
+# Begin by requsting each year starting from year1. 
+# Check the cache for each year before requesting remote.
+while year <= int(args.year2):
+    stuff = cac.read(year)
+    if not stuff:
+        stuff = req.send(year)
+        cac.write(stuff, year)
+    try:
+        total += int(stuff[args.name][1])
+    except KeyError:   
+        pass
+    year += 1
+    
+print total
