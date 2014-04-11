@@ -11,8 +11,8 @@ from argparse import ArgumentParser
 from boto.s3.connection import S3Connection
 from boto.s3.key import Key
 
-ak = "AKIAIR6QRCDRUBL2S7WQ"
-sk = "0nmmI2PvM8ygGpa9iJrZDIjkRwSWkBts4A8HYl4E"
+ak = ""
+sk = ""
 
 class S3Conn(object):
     def __init__(self, ak, sk):
