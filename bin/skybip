@@ -1,0 +1,856 @@
+#!/usr/bin/env python26
+"""Manage the main F5 BIGIP load balancers. The purpose of this module
+   is to manage the configuration workflow both internally from VIP to
+   pool creation and various other management items along with testing,
+   staging, production and disaster recovery configuration provisioning.
+
+   Configuration information is stored locally in /opt/skybip/cache.
+
+   TODO: Error handling such as bad passwords and network disconnects
+         Modularize (__main__ is way too big)
+         Remove duplicated code
+         Logging
+         Heavy commenting
+         Clean up hard-coded entries such as paths
+"""
+
+import sys, os
+import urllib2, binascii, io, base64
+from optparse import OptionParser, OptionGroup
+from ConfigParser import SafeConfigParser
+from getpass import getpass
+from time import strftime
+from re import search
+from json import load, dump
+from os import listdir, lstat
+from stat import S_ISREG, ST_MODE
+
+try:
+    import pycontrol.pycontrol as pc
+    import suds
+except ImportError, e:
+    print >> sys.stderr, e
+    sys.exit(1)
+
+__author__      = "Justin Cook <jhcook@gmail.com>"
+__version__     = "$Id: skybip 6960 2012-10-29 13:26:26Z jucook $"
+
+class SkyBip(object):
+    def __init__(self):
+        self.obj = None
+
+    def rexec(self, func=None):
+        if func:
+            f = getattr(self, func)
+            if callable(f):
+                return self.f()
+        else:
+            return None
+    
+    def connect(self, host, user="cellmate", passwd="cellmate", dbg=False):
+        """Create a connection to the specified BIGIP."""
+        self.obj= pc.BIGIP(hostname=host,
+                           username=user, 
+                           password=passwd,
+                           fromurl=True,
+                           debug=dbg,
+                           wsdls=['LocalLB.Pool', 'LocalLB.PoolMember', 
+                                  'LocalLB.Rule', 'LocalLB.Class', 
+                                  'LocalLB.SNATPool', 
+                                  'LocalLB.VirtualServer', 'LocalLB.ProfileClientSSL',
+                                  'LocalLB.ProfileServerSSL', 'Management.Partition', 
+                                  'Management.KeyCertificate', 'System.ConfigSync'])
+
+    def get_file(self, remote_file, local_file):
+        """Downloads the specified BIGIP file."""
+        stream_io = io.open(local_file, 'wb')
+        poll = True
+        chunk_size = 64*1024
+        foffset = 0
+        lines = []
+        while poll:
+            res = self.obj.System.ConfigSync.download_file(file_name = remote_file, 
+                                                           chunk_size = chunk_size, 
+                                                           file_offset = foffset)
+            foffset = long(res.file_offset)
+            fdata = getattr(res, 'return').file_data
+            chain_type = getattr(res, 'return').chain_type
+            lines.append(binascii.a2b_base64(fdata))
+            if (chain_type == 'FILE_LAST') or (chain_type == 'FILE_FIRST_AND_LAST'):
+                poll = False
+        stream_io.writelines(lines)
+
+    def send_file(self, local_file):
+        """Send a file to the LTM."""
+        ctx = self.obj.System.ConfigSync.typefactory.create(
+                               'System.ConfigSync.FileTransferContext')
+        poll = True
+        chunk_size = 64*768
+        ctx.chain_type = 'FILE_FIRST'
+        tsent = 0
+        try:
+            f = io.open(local_file, 'rb')
+        except IOError, e:
+            print >> sys.stderr, e
+            sys.exit(1)
+        while poll:
+            fdata = f.read(chunk_size)
+            if len(fdata) != chunk_size:
+                if tsent == 0:
+                    ctx.chain_type = 'FILE_FIRST_AND_LAST'
+                else:
+                    ctx.chain_type = 'FILE_LAST'
+                    pass
+                poll = False
+            ctx.file_data = base64.b64encode(fdata)
+            self.obj.System.ConfigSync.upload_file('/var/local/'+
+                                            os.path.basename(local_file), ctx)
+            tsent += 1
+            ctx.chain_type = 'FILE_MIDDLE'
+
+    def get_snat(self, vips):
+        """Given a list of VIPs, return the specified SNAT Pools."""
+        return self.obj.LocalLB.VirtualServer.get_snat_pool(vips)
+
+    def set_snat(self, vips, pools):
+        """Given a list of VIPs and Pools, assign the Pools to the VIPs."""
+        return self.obj.LocalLB.VirtualServer.set_snat_pool([vips], [pools])
+
+    def get_spools(self):
+        """Get a list of all defined SNAT Pools."""
+        return self.obj.LocalLB.SNATPool.get_list()
+
+    def get_spool(self, pool):
+        """Return a list of SNAP Pool members."""
+        return self.obj.LocalLB.SNATPool.get_member([pool])
+
+    def set_spool(self, pools, taddrs, members=None):
+        """Create the list of SNAT `pools` with translation addresses `taddrs`.
+           Add `members` to the pool."""
+        self.obj.LocalLB.SNATPool.create([pools], [taddrs])
+        if members:
+            return self.obj.LocalLB.SNATPool.add_member([pools], [members])
+
+    def get_irules(self, nm=None, vips=False):
+        """Get irules from the LTM and return them. If `nm` is passed in -- 
+           which are names of either specific rules or virtual servers as
+           long as `vips` is set to true, the specific named configurations
+           will be returned.
+        """
+        if not nm:
+            return self.obj.LocalLB.Rule.query_all_rules()
+        elif not vips:
+            return self.obj.LocalLB.Rule.query_rule([x for x in nm.split(',')])
+        else:
+            return self.obj.LocalLB.VirtualServer.get_rule([x for x in nm.split(',')])
+
+    def create_irule(self, rdef, virt=False):
+        """Create a rule on the remote node. Also, if associated with a VIP,
+           associate the created rule with specified VIP.
+        """
+        if not virt:
+            self.obj.LocalLB.Rule.create(rules=[rdef])
+        else:
+            self.obj.LocalLB.VirtualServer.add_rule(virt, rdef)
+
+    def get_pools(self, names=None):
+        """Get a list of pools. If `names` is passed in, more specific 
+           information will be returned such as name and IP address.
+        """
+        if names:
+            return self.obj.LocalLB.Pool.get_member(names)
+        else:
+            return self.obj.LocalLB.Pool.get_list()
+
+    def create_pool(self, name, members):
+        """Create a pool. `members` is a tuple of tuples with the IP address 
+           followed by port.
+        """
+        lbmeth = self.obj.LocalLB.Pool.typefactory.create('LocalLB.LBMethod')
+        mem_sequence = self.obj.LocalLB.Pool.typefactory.create(
+                                        'Common.IPPortDefinitionSequence')
+        tmp = []
+        for member in members:
+            mem = self.obj.LocalLB.Pool.typefactory.create('Common.IPPortDefinition')
+            mem.address, mem.port = member[0], member[1]
+            tmp.append(mem)
+        mem_sequence.item = tmp
+        self.obj.LocalLB.Pool.create(pool_names = [name], 
+                                     lb_methods = [lbmeth.LB_METHOD_ROUND_ROBIN], 
+                                     members = [mem_sequence])
+        return self.obj.LocalLB.Pool.get_member(pool_names = [name])
+
+    def get_client_ssl(self):
+        # Get a list of SSL profiles
+        profs = self.obj.LocalLB.ProfileClientSSL.get_list()
+        # Get list of files with each profile
+        for prof in profs:
+            yield (prof, 
+                   self.obj.LocalLB.ProfileClientSSL.get_certificate_file([prof]),
+                   self.obj.LocalLB.ProfileClientSSL.get_key_file([prof]),
+                   self.obj.LocalLB.ProfileClientSSL.get_ca_file([prof]))
+
+    def set_client_ssl(self, name, keys=None, certs=None, ca=None, lega=False):
+        # Create ClientSSL
+        if lega:
+            self.obj.LocalLB.ProfileClientSSL.create([name], [keys], [certs])
+            if ca:
+                self.obj.LocalLB.ProfileClientSSL.set_ca_file([name], [ca])
+        else:
+            self.obj.LocalLB.ProfileClientSSL.create_v2([name], [keys], [certs])
+            if ca:
+                self.obj.LocalLB.ProfileClientSSL.set_ca_file_v2([name], [ca])
+
+    def get_server_ssl(self):
+        # Get a list of SSL profiles
+        profs = self.obj.LocalLB.ProfileServerSSL.get_list()
+        # Get list of files with each profile
+        for prof in profs:
+            yield (prof,
+                   self.obj.LocalLB.ProfileServerSSL.get_certificate_file([prof]),
+                   self.obj.LocalLB.ProfileServerSSL.get_key_file([prof]),
+                   self.obj.LocalLB.ProfileServerSSL.get_ca_file([prof]))
+
+    def set_server_ssl(self, name, keys=None, certs=None, ca=None, lega=False):
+        # Create ClientSSL
+        self.obj.LocalLB.ProfileServerSSL.create([name])
+        if ca:
+            if lega:
+                self.obj.LocalLB.ProfileServerSSL.set_ca_file([name], [ca])
+            else:
+                self.obj.LocalLB.ProfileServerSSL.set_ca_file_v2([name], [ca])
+        if lega and keys:
+            self.obj.LocalLB.ProfileServerSSL.set_key_file([name], [keys])
+        if crts:
+            if lega:
+                self.obj.LocalLB.ProfileServerSSL.set_certificate_file([name],
+                                                                       [certs])
+            else:
+                self.obj.LocalLB.ProfileServerSSL.set_key_certificate_file([name],
+                                                                    [keys], [certs])
+
+    def get_ssl(self, path, archive):
+        """A full archive of the remote node's SSL certifications will be 
+           stored locally.
+        """
+        mode = self.obj.Management.KeyCertificate.typefactory.create(
+                          'Management.KeyCertificate.ManagementModeType')
+        self.obj.Management.KeyCertificate.export_all_to_archive_file(
+                                               mode['MANAGEMENT_MODE_DEFAULT'], 
+                                               os.path.dirname(archive),
+                                               os.path.basename(archive))
+        self.get_file(archive, path+os.path.basename(archive))
+
+    def create_ssl(self, file):
+        """Upload and import `file`."""
+        mode = self.obj.Management.KeyCertificate.typefactory.create(
+                              'Management.KeyCertificate.ManagementModeType')
+        self.send_file(file)
+        self.obj.Management.KeyCertificate.import_all_from_archive_file(
+                                               mode['MANAGEMENT_MODE_DEFAULT'],
+                                               '/var/local', 
+                                               os.path.basename(file))
+
+    def get_profiles(self, vip):
+        # Get profile associations with VIPs
+        return self.obj.LocalLB.VirtualServer.get_profile(vip)
+
+    def set_profile(self, vips, vprofs):
+        """Associate VIP to a profile."""
+        self.obj.LocalLB.VirtualServer.add_profile(vips, vprofs)
+
+    def get_vips(self, stats=False, vips=None):
+        """Return a list of virtual server defined on the remote node. If
+           `stats` is True, this will return more information. If `vips`
+           is a string, the specific information will be returned for those
+           named only.
+        """
+        if not stats:
+            return self.obj.LocalLB.VirtualServer.get_list()
+        elif not vips:
+            return self.obj.LocalLB.VirtualServer.get_all_statistics()
+        else:
+            return self.obj.LocalLB.VirtualServer.get_statistics(
+                                                   [z for z in vips.split(',')])
+
+    def create_vip(self, name, address, port, profiles=None, protocol='PROTOCOL_TCP'):
+        """Create a virtual server by `name` listening on `address` and `port`
+           passed in.
+        """
+        v = self.obj.LocalLB.VirtualServer
+        vs_def = v.typefactory.create('Common.VirtualServerDefinition')
+        vs_def.name = name
+        vs_def.address = address
+        vs_def.port = port
+        proto = v.typefactory.create('Common.ProtocolType')
+        vs_def.protocol = getattr(proto, protocol)
+        vs_def_seq = v.typefactory.create('Common.VirtualServerSequence')
+        vs_def_seq.item = [vs_def]
+        vs_type = v.typefactory.create('LocalLB.VirtualServer.VirtualServerType')
+        resource = v.typefactory.create('LocalLB.VirtualServer.VirtualServerResource')
+        resource.type = vs_type.RESOURCE_TYPE_POOL
+        #resource.default_pool_name = 'disasterServer'
+        resource_seq = v.typefactory.create(
+                        'LocalLB.VirtualServer.VirtualServerResourceSequence')
+        resource_seq.item = [resource]
+        prof_seq = v.typefactory.create(
+                      'LocalLB.VirtualServer.VirtualServerProfileSequence')
+        prof_seq.item = profiles
+        try:
+            v.create(definitions = vs_def_seq,
+                     wildmasks=['255.255.255.255'],
+                     resources=resource_seq,
+                     profiles=[prof_seq])
+        except Exception, e:
+            print >> sys.stderr, e
+
+    def get_partitions(self):
+        """Need a list of the partitions to see if the correct one is configured
+           and to set the correct one to query.
+        """
+        return self.obj.Management.Partition.get_partition_list()
+
+    def show_pool_status(self, pool_name = None):
+        print pool_name
+        for x in self.obj.LocalLB.Pool.get_object_status(pool_names=[pool_name]):
+            print "\t",     x.availability_status
+            print "\t",     x.enabled_status
+            print "\t",     x.status_description
+            print "\n"
+
+##### UTILITY FUNCS #####
+
+def parse_cmdline():
+    """Parse the command line and make sure no contradicting (mutually exclusive)
+       options are not set. Group the commands in logical groups.
+    """
+    usage = "usage: %prog [options] host"
+    parser = OptionParser(usage=usage)
+    parser.add_option("-d", "--debug", dest="debug", action="store_true",
+                      default=False, help="print out verbose debug information")
+    parser.add_option("-f", "--cfile", action="store", type="string",
+                      dest="cfile", help="specify config file location")
+    parser.add_option("-g", "--get", dest="get", action="store_true",
+                      default=False, help="retrieve and store entire configuration")
+    parser.add_option("-l", "--legacy", dest="lega", action="store_true",
+                      default=False, help="support of legacy API")
+    parser.add_option("-s", "--save", dest="save", action="store_true",
+                      default=False, help="store remote configuration local")
+    pgroup1 = OptionGroup(parser, "Destructive options",
+                          "Warning: these options alter the remote configuration")
+    pgroup1.add_option("-c", "--create", dest="create", action="store_true", 
+                       default=False, help="create configurable entity")
+    pgroup1.add_option("-r", "--remove", dest="remove", action="store_true",
+                       default=False, help="remove an item from configuration")
+    pgroup1.add_option("-w", "--write", dest="write", action="store_true",
+                       default=False, help="write config to node")
+    pgroup1.add_option("-y", "--yes", dest="yes", action="store_true",
+                       default=False, help="assume yes as answer to prompt")
+    parser.add_option_group(pgroup1)
+    pgroup2 = OptionGroup(parser, "Configurable items. Select to query or modify.")
+    pgroup2.add_option("-a", "--profiles", action="store_true", default=False,
+                       dest="profiles", help="restore profiles to VIPs")
+    pgroup2.add_option("-C", "--ca", action="store", type="string",
+                       dest="ca", help="specify ssl cetificates")
+    pgroup2.add_option("-k", "--class", action="store", type="string",
+                       dest="klass", help="specify class")
+    pgroup2.add_option("-H", "--host", action="store", type="string",
+                       dest="host", help="specify remote host - overridden by -2")
+    pgroup2.add_option("-I", "--irule", action="store", type="string", dest="irule",
+                       help="play with irule")
+    pgroup2.add_option("-P", "--pool", action="store", type="string", dest="pool", 
+                       help="specify pool 'name,ip:port,ip:port;name,ip:port'")
+    pgroup2.add_option("-p", "--partition", action="store", type="string",
+                       dest="partition", default="SkyPlayer",
+                       help="specify partition name")
+    pgroup2.add_option("-S", "--snat", action="store", type="string", dest="snat",
+                       help="specify SNAT")
+    pgroup2.add_option("-V", "--vip", dest="vip", action="store", type="string",
+                       help="specify the VIP name,addr:port")
+    pgroup2.add_option("-2", "--second", action="store_true", dest="second",
+                       default=False, help="select standby node in configuration")
+    parser.add_option_group(pgroup2)
+    opts, args = parser.parse_args()
+    if opts.create or opts.remove or opts.write or opts.save:
+        if ((opts.create and opts.remove) or (opts.create and opts.write) or
+            (opts.create and opts.save)):
+            parser.error("more than one mutual exclusive option selected")
+        elif (opts.remove and opts.write) or (opts.remove and opts.save):
+            parser.error("more than one mutual exclusive option selected")
+        elif opts.write and opts.save:
+            parser.error("more than one mutual exclusive option selected")
+        elif ((opts.create or opts.remove or opts.write) and not (opts.vip 
+               or opts.ca or opts.klass or opts.snat or opts.irule or opts.pool)):
+            parser.error("must specify destructive operation")
+    if len(args) < 1:
+        parser.error("no host group provided")
+    return opts, args
+
+def parse_cfgfile(file):
+    """Read the config file and return the necessary information as a dictionary
+       with items as a dictionary.
+    """
+    config = SafeConfigParser()
+    try:
+        config.readfp(open(file if file else '/etc/skybip/skybip.cfg'))
+    except IOError, e:
+        print >> sys.stderr, e
+        sys.exit(1)
+    t = {}
+    for section in config.sections():
+        t[section.lower()] = {}
+        for item in config.items(section):
+            t[section.lower()][item[0].lower()] = item[1] 
+    return t
+
+def extract_archive(file, dir):
+    import tarfile
+    t = tarfile.open(file)
+    t.extractall(dir)
+
+def lsdir(dir):
+    """List regular file contents of a directory and return a tuple
+       minus directories.
+    """
+    reg_files = []
+    for file in listdir(dir):
+        if S_ISREG(lstat(dir+file)[ST_MODE]):
+            reg_files.append(file)
+    return tuple(reg_files)
+
+def persist(fname, data):
+    """This is a massive kludge to work around suds metaprogramming.
+       Since restoring these data structures from file is proving
+       painful, create a native struct so this can be restored later.
+    """
+    thislst = []
+    for i in data:
+        thisdict = {}
+        keys = i.__keylist__
+        for val in keys:
+            thisdict[val] = getattr(i, val)
+        thislst.append(thisdict)
+    try:
+        with open(fname, 'w') as f:
+            dump(thislst, f)
+    except IOError, e:
+        print >> sys.stderr, e
+        sys.exit(1)
+
+def restore(fname):
+    """This is a massive kludge to work around suds metaprogramming.
+       Since restoring these data structures from file is proving 
+       painful, create a native struct so this can be restored later.
+    """             
+    with open(fname, 'r') as f:
+        return load(f)
+
+##### MAIN #####
+
+if __name__ == '__main__':
+    # Parse the command line and retrieve the necessary options and arguments
+    opts, args = parse_cmdline()
+    # Parse the config file and get necessary information
+    cfg = parse_cfgfile(opts.cfile)
+    if opts.debug:
+        print "cmdline: ", opts, args
+        print "cfgfile: ", cfg 
+    # Define what remote host to connect to. If '-2' was specified as an option
+    # then look in the config file for that definition. If the host was passed
+    # in as '-h' then override args[0] lookup in the config file.
+    try:
+        if opts.second:
+            host = cfg[args[0].lower()]['hst2']
+        else:
+            host = cfg[args[0].lower()]['host'] if not opts.host else opts.host
+    except KeyError:
+        print >> sys.stderr, "undefined host"
+        sys.exit(1)
+    # Create the connection
+    t = SkyBip()
+    try:
+        t.connect(host, dbg=opts.debug)
+    except urllib2.URLError, e:
+        print >> sys.stderr,  e
+        sys.exit(1)
+    # Saving the config locally so name the file according to the
+    # host and use epoch as well. Make sure the path ends with a '/'.
+    # Create the directory to cache if it does not exist.
+    fname = host+'-'+strftime('%Y%m%d%H%M')
+    try:
+        if cfg[args[0].lower()]['local_store'].endswith('/'):
+            lstore = cfg[args[0].lower()]['local_store']+args[0]+'/'
+        else:
+            lstore = cfg[args[0].lower()]['local_store']+'/'+args[0]+'/'
+    except KeyError:
+        print >> sys.stderr, "host group specified is unavailable"
+        sys.exit(1)
+    if not os.path.exists(lstore):
+        try:
+            if opts.debug:
+                print "creating", lstore
+            os.makedirs(lstore)
+        except IOError, e:
+            print >> sys.stderr, e
+            sys.exit(1)
+    # Set the active partition
+    try:
+        t.obj.Management.Partition.set_active_partition(opts.partition)
+    except suds.WebFault, e:
+        print >> sys.stderr, e
+        sys.exit(1)
+    # Execute what we were told. Mutually exclusive options should have already
+    # been taken care of in parse_cmdline.
+    if opts.save:
+        try:
+            if opts.klass:
+                def get_string(klass=None):
+                    if not klass:
+                        klass = t.obj.LocalLB.Class.get_string_class_list()
+                    return t.obj.LocalLB.Class.get_string_class(klass)
+                def get_external():
+                    pass
+                if opts.klass == 'all':
+                    persist(lstore+fname+'-string.class', get_string())
+            elif opts.snat:
+                for vip in t.get_vips():
+                    sp = t.get_snat([vip])
+                    if len(sp[0]) > 0:
+                        with open(lstore+fname+'-'+vip+'.snat', 'w') as f:
+                            f.write(sp[0]+'\n')
+                            for node in t.get_spool(sp[0]):
+                                if len(node) > 0:
+                                    f.write(node[0]+'\n')
+            elif opts.ca:
+                t.get_ssl(lstore, '/var/local/ssl-back.tgz')
+                if opts.ca == 'all':
+                    vips = t.get_vips()
+                else:
+                    vips = opts.ca.split(',')
+                stuff = t.get_profiles(vips)
+                # These two lines should be removed from here and put on their own.
+                for v, stf in zip(vips, stuff):
+                    persist(lstore+fname+'-'+v+'.viprof', stf)
+                for prof, cert, key, tca in t.get_client_ssl():
+                    if cert[0].value:
+                        persist(lstore+fname+'-clnt-'+prof+'.crtfile', cert)
+                    if key[0].value:
+                        persist(lstore+fname+'-clnt-'+prof+'.keyfile', key)
+                    if tca[0].value:
+                        persist(lstore+fname+'-clnt-'+prof+'.cafile', tca)
+                for prof, cert, key, tca in t.get_server_ssl():
+                    if cert[0].value:
+                        persist(lstore+fname+'-srvr-'+prof+'.crtfile', cert)
+                    if key[0].value:
+                        persist(lstore+fname+'-srvr-'+prof+'.keyfile', key)
+                    if tca[0].value:
+                        persist(lstore+fname+'-srvr-'+prof+'.cafile', tca)
+            elif opts.irule:
+                print "Storing iRules"
+                # When a vip(s) is passed, it returns a list of a list of
+                # LocalLB.VirtualServer.VirtualServerRule which is one more
+                # deep than calling for "all" or a specific rule set.
+                # Therefore, it is necessary to dive two more deep.
+                if opts.vip:
+                    tmp = t.get_irules(opts.vip, True)
+                    for i, vip in enumerate(opts.vip.split(',')):
+                        persist(lstore+fname+'-'+vip+'.viprule', 
+                                [z for z in tmp[i]])
+                else:
+                    # When "all" is called it returns a list of 
+                    # LocalLB.Rule.RuleDefinition so no need to dive.
+                    if opts.irule == "all":
+                        persist(lstore+fname+'.irules', t.get_irules())
+                    # When the rule is specified, it returns a list of a list of
+                    # LocalLB.Rule.RuleDefinition so need to dive one deep.
+                    else:
+                        persist(lstore+fname+'-'+opts.irule+'.irules', 
+                                t.get_irules(opts.irule))
+            elif opts.pool:
+                # Pools are simply a named collection of nodes by IP and port.
+                # In the following, all or only the named pools are retrieved
+                # and stored.
+                print "Saving pool definitions"
+                if opts.pool == 'all':
+                    tmp = t.get_pools()
+                else:
+                    tmp = opts.pool.split(',')
+                for pool, data in zip(tmp, t.get_pools(tmp)):
+                    persist(lstore+fname+'-'+pool.split('/')[-1]+'.pool', data)
+            elif opts.vip:
+                # In order to create a vip, the name, address, and port is
+                # necessary. Get that information and cache it locally for 
+                # future use.
+                print "Storing virtual server definitions"
+                if opts.vip == 'all':
+                    persist(lstore+fname+'.vips',
+                        [z.virtual_server for z in t.get_vips(True).statistics])
+                else:
+                    print "named vips not supported"
+            else:
+                # If saved was specified with no options, the entire configuration
+                # is archived remotely and then fetched. The remote archive is
+                # then deleted. 
+                print "Generating %s" % fname
+                t.obj.System.ConfigSync.save_configuration(fname+'.ucs', "SAVE_FULL")
+                if opts.debug:
+                    print t.obj.System.ConfigSync.get_configuration_list()
+                print "Retrieving %s" % fname
+                try:
+                    t.get_file("/var/local/ucs/"+fname, lstore+fname)
+                except Exception, e:
+                    print >> sys.stderr, e
+                    sys.exit(1)
+                print "Deleting %s" % fname
+                try:
+                    t.obj.System.ConfigSync.delete_configuration(fname)
+                except Exception, e:
+                    print >> sys.stderr, e
+                    sys.exit(1)
+                if opts.debug:
+                    print t.obj.System.ConfigSync.get_configuration_list()
+        except suds.WebFault, e:
+            print >> sys.stderr, e
+    elif opts.remove:
+        # If this code is instructed to remove configurable items dependant 
+        # upon each other, start from the bottom of the tree and work up.
+        if opts.klass:
+            pass
+        if opts.snat:
+            pass
+        if opts.irule:
+            pass
+        if opts.pool:
+            print "Deleting pool:", opts.pool
+            try:
+                t.obj.LocalLB.Pool.delete_pool([opts.pool])
+            except Exception, e:
+                print >> sys.stderr, e
+                sys.exit(1)
+        if opts.vip:
+            print "Deleting VIP:", opts.vip
+            try:
+                t.obj.LocalLB.VirtualServer.delete_virtual_server([opts.vip])
+            except Exception, e:
+                print >> sys.stderr, e
+                sys.exit(1)
+    elif opts.create:
+        # If this code is instructed to create multiple configurable items
+        # dependant upon each other, start from the top of the tree and 
+        # work down.
+        if opts.vip:
+            try:
+                for entry in opts.vip.split(';'):
+                    stuff = entry.split(',')
+                    addr, port = stuff[1].split(':')
+                    print "Create VIP:", stuff[0], addr, port
+                    t.create_vip(stuff[0], addr, port)
+            except IndexError:
+                print >> sys.stderr, "maligned input"
+            except Exception, e:
+                print >> sys.stderr, e
+        if opts.pool:
+            try:
+                for entry in opts.pool.split(';'):
+                    stuff = entry.split(',')
+                    hosts = tuple([tuple(x.split(':')) for x in stuff[1:]])
+                    print "Create pool:", stuff[0], hosts
+                    t.create_pool(stuff[0], hosts)
+            except IndexError:
+                print >> sys.stderr, "maligned input"
+            except Exception, e:
+                print >> sys.stderr, e
+        if opts.ca:
+            pass
+        if opts.klass:
+            pass
+        if opts.irule:
+            pass
+        if opts.snat:
+            pass
+    elif opts.write:
+        # If instructed to write, look to see if the specified file is actually
+        # available. Prompt the user since these will be destructive changes.
+        def destruct_prompt():
+            inp = ''
+            while inp.lower() != 'y' and not opts.yes:
+                inp = raw_input("Sending instructions. CONTINUE? [y/N]: ")
+                if inp.lower() == 'n' or inp.lower() == '':
+                    return False
+            return True
+        try:
+            files = lsdir(lstore)
+            if opts.debug:
+                print files
+        except IOError, e:
+            print >> sys.stderr, e
+            sys.exit(1)
+        if opts.snat:
+            # Verified working but not 10-11.x compatible
+            with open(opts.snat, 'r') as f:
+                pool = f.readline()
+                taddrs = f.readlines()
+            if pool:
+                t.set_spool(pool, taddrs)
+                t.set_snat(search(r'[0-9]{12}-(.*).snat', opts.snat).group(1), pool)
+        elif opts.klass:
+            stf = restore(lstore+opts.klass)
+            classes = []
+            for ent in stf:
+                ir = t.obj.LocalLB.Class.typefactory.create(
+                                              'LocalLB.Class.StringClass')
+                for key in ent.keys():
+                    setattr(ir, key, ent[key])
+                classes.append(ir)
+            if destruct_prompt():
+                t.obj.LocalLB.Class.create_string_class(classes)
+        elif opts.irule:
+            # Verified working
+            stf = restore(lstore+opts.irule)
+            nm = False
+            if opts.debug:
+                print stf
+            if opts.irule.endswith('.irules'): 
+                ir = t.obj.LocalLB.Rule.typefactory.create(
+                                         'LocalLB.Rule.RuleDefinition')
+            elif opts.irule.endswith('.viprule'):
+                ir = t.obj.LocalLB.VirtualServer.typefactory.create(
+                                         'LocalLB.VirtualServer.VirtualServerRule')
+                nm = search(r'[0-9]{12}-(.*).viprule', opts.irule)
+            else:
+                print >> sys.stderr, "not appropriate file for command"
+                sys.exit(1)
+            if destruct_prompt():
+                for ent in stf:
+                    for key in ent.keys():
+                        setattr(ir, key, ent[key])
+                    if opts.debug:
+                        print ir
+                    t.create_irule(ir, nm)
+        elif opts.ca:
+            if opts.ca == "all":
+                t.create_ssl(lstore+'ssl-back.tgz')
+                sys.exit(0)
+            kees = None
+            crts = None
+            ca = None
+            nm = None
+            sstring = r'[0-9]{12}-(clnt|srvr)-([a-zA-Z0-9_-]+).*\.'
+            for fl in opts.ca.split(','):
+                stf = restore(lstore+fl)
+                if fl.endswith('.crtfile'):
+                    nm = search(sstring+'crtfile', fl)
+                    crts = t.obj.LocalLB.ProfileClientSSL.typefactory.create(
+                                                             'LocalLB.ProfileString')
+                    for ent in stf:
+                        for key in ent.keys():
+                            setattr(crts, key, ent[key])
+                elif fl.endswith('.keyfile'):
+                    nm = search(sstring+'keyfile', fl)
+                    kees = t.obj.LocalLB.ProfileClientSSL.typefactory.create(
+                                                             'LocalLB.ProfileString')
+                    for ent in stf:
+                        for key in ent.keys():
+                            setattr(kees, key, ent[key])
+                elif fl.endswith('.cafile'):
+                    nm = search(sstring+'cafile', fl)
+                    ca = t.obj.LocalLB.ProfileClientSSL.typefactory.create(
+                                                           'LocalLB.ProfileString')
+                    for ent in stf:
+                        for key in ent.keys(): 
+                            setattr(ca, key, ent[key])
+            if opts.debug:
+                print nm.group(2), kees, crts, ca
+            if destruct_prompt():
+                if nm.group(1) == 'clnt':
+                    t.set_client_ssl(nm.group(2), keys=kees, certs=crts, ca=ca,
+                                     lega=opts.lega)
+                else:
+                    t.set_server_ssl(nm.group(2), keys=kees, certs=crts, ca=ca,
+                                     lega=opts.lega)
+        elif opts.pool:
+            # Verified working
+            nm = search(r'[0-9]{12}-(.*).pool', opts.pool)
+            if opts.debug:
+                print nm.group(1)
+            if not opts.pool.endswith('.pool'):
+                print >> sys.stderr, "not appropriate file for command"
+                sys.exit(1)
+            stf = restore(lstore+opts.pool)
+            if destruct_prompt():
+                t.create_pool(nm.group(1),[(b['address'], b['port']) for b in stf])
+        elif opts.vip:
+            if not opts.vip.endswith('.vips'):
+                print >> sys.stderr, "not appropriate file for command"
+                sys.exit(1)
+            stf1 = restore(lstore+opts.vip)
+            stf2 = []
+            if destruct_prompt():
+                pass
+            else:
+                sys.exit(0)
+            for i, z in enumerate(stf1):
+                stf2.append([])
+                try:
+                    hstf = [y for y in [search(r'.*[0-9]{12}-(%s).viprof' 
+                                               % z['name'], s) 
+                            for s in files] if y][0]
+                except:
+                    pass
+                else:
+                    if opts.profiles:
+                        for prof in restore(lstore+hstf.group(0)):
+                            prf = t.obj.LocalLB.VirtualServer.typefactory.create(
+                                    'LocalLB.VirtualServer.VirtualServerProfile')
+                            prf.profile_name = prof['profile_name']
+                            prf.profile_context = prof['profile_context']
+                            stf2[i].append(prf)
+                if opts.debug:
+                    print stf1, stf2
+                t.create_vip(z['name'], z['address'], z['port'], 
+                             profiles=stf2[i], protocol=z['protocol'])
+        else:
+            print >> sys.stderr, "Incomplete request"
+            sys.exit(1)
+    else:
+        if opts.snat:
+            if opts.vip:
+                for x in t.get_snat([x for x in opts.vip.split(',')]):
+                    print x
+            else:
+                 for vip in t.get_vips():
+                     print vip
+                     print t.get_snat([vip]), "\n"
+        elif opts.ca:
+            for i in t.get_client_ssl():
+                print i
+            for i in t.get_server_ssl():
+                print i
+        elif opts.klass:
+            if opts.klass == 'all':
+                for klass in t.obj.LocalLB.Class.get_string_class_list():
+                    print klass
+                    print t.obj.LocalLB.Class.get_string_class([klass])
+        elif opts.irule:
+            try:
+                if opts.vip:
+                    for x in t.obj.LocalLB.VirtualServer.get_rule(
+                                      [x for x in opts.vip.split(',')]):
+                        print x
+                elif opts.irule == 'all':
+                    print t.obj.LocalLB.Rule.query_all_rules()
+                else:
+                    print t.obj.LocalLB.Rule.query_rule(
+                                      [x for x in opts.irule.split(',')])
+            except Exception, e:
+                print >> sys.stderr, e
+                sys.exit(1)
+        elif opts.pool:
+            for x in t.get_pools():
+                t.show_pool_status(x)
+        elif opts.vip:
+            if opts.vip == 'all':
+                for defo in t.get_vips(True).statistics:
+                    print defo.virtual_server
+            else:
+                print t.get_vips()
