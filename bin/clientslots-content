@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+#
+# This code checks a remote file in an S3 bucket, parses it's last modified time,
+#+checks it against the local cache and then downloads it and installs if
+#+it does not match. The cache is located in ~/.clientorchestra/.clientslots-content.
+#
+# This code is not designed to be ran interactively.
+#
+# Author: Justin Cook <jhcook@secnix.com>
+
+set -e
+set -x
+set -o nounset
+
+declare -r CACHEDIR="$HOME/.clientorchestra"
+declare -r CACHEFILE=".clientslots-content"
+
+if [ -d $CACHEDIR ]
+then
+  LM=`awk -F= '$1~/last_modified/{print$2}' ${CACHEDIR}/${CACHEFILE}` || LM=''
+else
+  mkdir $CACHEDIR && touch ${CACHEDIR}/${CACHEFILE}
+fi
+
+DOIT=`python -  << __EOF__
+from re import search
+from dateutil import parser
+from boto.s3.connection import S3Connection
+from boto.s3.key import Key
+
+ak = ""
+sk = ""
+
+bcktname = 'clientslots-content'
+conn = S3Connection(ak, sk)
+bckt = conn.get_bucket(bcktname)
+kobj = bckt.get_key('clientslots-content-LIVE.jar')
+lm = parser.parse(kobj.last_modified).replace(microsecond=0).isoformat()
+if "$LM":
+    clm = parser.parse("$LM").replace(microsecond=0).isoformat()
+    if lm != clm:
+        print kobj.last_modified
+        kobj.get_contents_to_filename("$CACHEDIR/%s" % kobj.name)
+    else:
+        print ''
+else:
+    print kobj.last_modified
+    kobj.get_contents_to_filename("$CACHEDIR/%s" % kobj.name)
+
+__EOF__
+`
+
+if [ ! -z "$DOIT" ]
+then
+  mv $CACHEDIR/clientslots-content-LIVE.jar $HOME/usersetup/nextgen/
+  cd $HOME/usersetup
+  fab -R web installcontent:version=LIVE
+  sed -ie "s|last_modified.*|last_modified=$DOIT|g" ${CACHEDIR}/${CACHEFILE} || \
+    echo last_modified=$DOIT >> ${CACHEDIR}/${CACHEFILE}
+fi
+

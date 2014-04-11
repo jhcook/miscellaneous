@@ -1,0 +1,68 @@
+#!/usr/bin/env python
+#
+# This code is very simple. It reads a UID from a command-line argument,
+# calls a Facebook GraphAPI using urllib2, decodes the JSON object returned
+# and saves each non-null return to Splunkstorm.
+#
+# Author: Justin Cook <jhcook@secnix.com>
+
+from sys import argv
+from urllib2 import urlopen, HTTPPasswordMgrWithDefaultRealm, HTTPBasicAuthHandler
+from urllib2 import build_opener, install_opener, Request, HTTPError
+from urllib import urlencode
+from json import loads, dumps
+
+FBTKN = "CAAGySN6dRU4BAIPAbSISGBZA6KR9c3DbcppAZAgbCRzf6Q739H5ML7NGyr9sfR5yZBJADqurMPiXR0RNTuZBgffaRROcAD5ilcuDGNkvlHMqWoefWbIvUbYXs4O4VBnJIiLINzUZCP7LFhPj83eZALNHNLtZCltnKYZD"
+
+SPTKN = "P-T8JxBLT4DOXK3HIJ6Z-Y03smLrr_CkrvN8su9b9HVcQZBYzxg-Hw9aglyuX-Ua5FfVwtoZZv8="
+SPPID = "5e640246bcae11e296e822000a1cdcf0"
+
+class StormLog(object):
+    def __init__(self, access_token, project_id, input_url=None):
+        self.url = input_url or 'https://api.splunkstorm.com/1/inputs/http'
+        self.project_id = project_id
+        self.access_token = access_token
+        self.pass_manager = HTTPPasswordMgrWithDefaultRealm()
+        self.pass_manager.add_password(None, self.url, 'x', access_token)
+        self.auth_handler = HTTPBasicAuthHandler(self.pass_manager)
+        self.opener = build_opener(self.auth_handler)
+        install_opener(self.opener)
+
+    def send(self, event_text, sourcetype='syslog', host=None, source=None):
+        params = {'project': self.project_id,
+                  'sourcetype': sourcetype}
+        if host:
+            params['host'] = host
+        if source:
+            params['source'] = source
+        url = '%s?%s' % (self.url, urlencode(params))
+        try:
+            return urlopen(Request(url, event_text)).read()
+            #req = Request(url, event_text)
+            #response = urlopen(req)
+            #return response.read()
+        except (IOError, OSError), ex:
+            raise
+
+class FacebookUser(object):
+    def __init__(self, access_token, input_url=None):
+        self.access_token = access_token
+        self.url = input_url or 'https://graph.facebook.com'
+
+    def get_likes(self, uid):
+        params = {'access_token': self.access_token}
+        url = '%s/%s/%s?%s' % (self.url, uid, 'likes', urlencode(params))
+        print url
+        return loads(urlopen(url).read())
+
+
+if __name__ == '__main__':
+    log = StormLog(SPTKN, SPPID)
+    farkfb = FacebookUser(FBTKN)
+   
+    try: 
+        likes = farkfb.get_likes(argv[1])
+        if likes['data']:
+            log.send(dumps({argv[1]: likes['data']}), sourcetype='json_no_timestamp')
+    except HTTPError, e:
+        print e

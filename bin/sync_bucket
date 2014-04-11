@@ -1,0 +1,66 @@
+#!/usr/bin/env python
+#
+# Delete the entire contents of a bucket and sync the specified local directory
+#+to the bucket.
+#
+# Author: Justin Cook <jhcook@secnix.com>
+
+from sys import argv
+from os import path, listdir
+from argparse import ArgumentParser
+from boto.s3.connection import S3Connection
+from boto.s3.key import Key
+
+ak = "AKIAIR6QRCDRUBL2S7WQ"
+sk = "0nmmI2PvM8ygGpa9iJrZDIjkRwSWkBts4A8HYl4E"
+
+class S3Conn(object):
+    def __init__(self, ak, sk):
+        self.conn = S3Connection(ak, sk)
+
+    def sync(self, local_path, bucket, s3_path=None):
+        bucket  = self.conn.get_bucket(bucket)
+        self._sync_dir(bucket, local_path, s3_path)
+
+    def _save_to_aws(self, bucket, local_path, s3_path):
+        basename = path.basename(local_path)
+        d = ''
+        if s3_path:
+            d = s3_path + '/'
+            keyname = d + basename
+        else:
+            keyname = basename
+        k = bucket.lookup(keyname)
+        k = Key(bucket)
+        k.key = keyname
+        k.set_contents_from_filename(local_path)
+
+    def _sync_dir(self, bucket, local_path, s3_path):
+        for file in listdir(local_path):
+            dir_file = local_path + '/' + file
+            if path.isdir(dir_file):
+                new_s3_path = s3_path + '/' + file if s3_path else file
+                self._sync_dir(bucket, dir_file, new_s3_path)
+            else:
+                self._save_to_aws( bucket, dir_file, s3_path)
+
+    def delete(self, bucketname, prefix=''):
+        bucket = self.conn.get_bucket(bucketname)
+        result = bucket.delete_keys([key.name for key in bucket.list(prefix)])
+
+parser = ArgumentParser()
+parser.add_argument('-d', '--delete', action='store_true',
+                    help='delete entire specified bucket')
+args = parser.parse_args()
+
+conn = S3Conn(ak, sk)
+bucket = argv[2].split('/', 1)[0]
+
+try:
+    pth = argv[2].split('/', 1)[1]
+except IndexError:
+    pth = ''
+
+if args.delete:
+    conn.delete(bucket, pth)
+conn.sync(argv[1], bucket, pth)

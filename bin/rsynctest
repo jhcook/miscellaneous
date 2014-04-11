@@ -1,0 +1,68 @@
+#!/bin/bash
+#
+# The `rsync` callable in $PATH is a link to Perl code that wraps the rsync binary
+#+and calls in parallel. Since the individual connection was slowed down, this
+#+parallel wrapper was put in place to mitigate. 
+# It has now come time to capture traffic headers and analyze the problem since
+#+each rsync instance in the parallel implementation has become slow. This code
+#+does the following:
+#+    1. Capture rsync protocol header to/from the destination.
+#+    2. Capture ICMP messages.
+#+    3. Initiate the parallel rsync.
+#+    4. Files saved as ~/rsynctest/datetime_PID.{log,dmp}
+#
+# Author: Justin Cook <jhcook@gmail.com>
+
+# Globals
+FNAMEPRE="$(date +%Y%m%d)-$$"	# yyyymmdd-pid as a file preamble
+declare -a PIDS			# Track PIDs so we can exit nicely.
+
+# Exit nicely
+trap on_sig INT TERM
+trap on_exit EXIT
+function on_sig {
+  echo "Caught signal. Exiting."
+  exit
+}
+
+function on_exit {
+  echo "Killing procs"
+  for (( i = 0 ; i < ${#PIDS[@]} ; i++ )) ; do
+    echo "killing ${PIDS[$i]}"
+    kill -15 ${PIDS[$i]} 2>/dev/null
+  done
+  echo "CYa!"
+}
+
+# Since rsync is going through ssh, capture the headers for ssh to/from a specific
+#+host.
+function capture_rsnc {
+  /usr/sbin/tcpdump -nn -w ${FNAMEPRE}_rsync.pcap -i eth3 \
+src 8.254.73.53 or dst 8.254.73.53 >>/tmp/${FNAMEPRE}.log 2>&1 &
+  PIDS[${#PIDS[@]}]=$!
+}
+
+# Capture all ICMP packets to the relevant device.
+function capture_icmp {
+  /usr/sbin/tcpdump -nn -w ${FNAMEPRE}_icmp.pcap -i eth3 icmp \
+>>/tmp/${FNAMEPRE}.log 2>&1 &
+  PIDS[${#PIDS[@]}]=$!
+}
+
+#Main
+echo "Capturing packets..."
+capture_rsnc
+capture_icmp
+
+for i in $(ls -l /kroot/content/media/skyplayer/MOBIMOVIES| grep '^d.*____$' | \
+awk '{print$9}') ; do
+  echo "rsyncing $i"
+  rsyncReal -e "ssh -i /usr/share/tomcat6/.ssh/goassetsstage.rsa" -rlgoD --stats \
+--ignore-existing /kroot/content/media/skyplayer/MOBIMOVIES/$i \
+goassetsstage@8.254.73.53:rtest/ >>/tmp/${FNAMEPRE}.log 2>&1 &
+  PIDS[${#PIDS[@]}]=$!
+done
+
+echo "Press return to exit."
+read whocares
+

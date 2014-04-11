@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+#
+# This code is used to source the specified release, upload it to production
+#+and then push it to each server necessary. This script relies on SSH
+#+keys loaded in ssh-agent with access to root on the push host in production
+#+and Git as well as an API key to Newrelic.
+#
+# This code exits in the event an command returns nonzero. All errors are 
+#+logged to /tmp/prod.PID.
+#
+# Usage: push_prod [-hv] [-c changelog] [-d description] [-w workspace] version
+#+where version is release such as 3.35.
+#
+# Tested on: Mac OSX 10.7.5
+#
+# Author: Justin Cook <jhcook@secnix.com>
+
+set -e
+
+declare RELEASE_VERSION              #Version number such as 3.35
+declare DESCRIPTION                  #Description of the release
+declare CHANGELOG                    #Specific changes to coe in release
+declare MHOST="10.220.1.10"          #The host to use for remote management
+declare RELEASE=true                 #Actually perform the release
+declare NOTIFY=true                  #Notify Newrelic
+declare WORKSPACE="/tmp/prod.$$"     #Local directory for caching/logging
+declare HOST="`hostname`"            #The host executing this command
+declare USER="`whoami`"              #The user executing this command
+declare DOWNLOAD=true                #Skip downloading release
+declare PUSH=true                    #Do not push tarball
+
+function usage()
+{
+cat << __EOF__
+usage: $0 [options] version
+
+$0 is used to push a production release
+
+OPTIONS:
+   -h      Show this message
+   -c      Quoted string of code changes
+   -d      Quoted string of release description
+   -g      Do not download but us [-w] target
+   -n      Do not notify Newrelic
+   -p      Do not push
+   -r      Do not release
+   -v      Verbose
+   -w      Directory to use for workspace - defaults /tmp/prod.PID
+__EOF__
+}
+
+#########################################################################
+# The management host must be contactable. Since this code is set -e the 
+# code will exit if a command returns false. There is no reason to make
+# this function anything special such as return codes, etc.
+#########################################################################
+function check_mhost() {
+  ssh -o ConnectTimeout=5 -tt root@${MHOST} \"whoami\" 2>&1 >> /dev/null
+}
+
+#########################################################################
+# Use `curl` via the proxy to download the release package and save it to
+# WORKSPACE.
+#########################################################################
+function get_release () {
+curl --proxy 54.246.139.216:7000 -U client:password \
+  http://galaga.clientgaming.com:6667/nexus/service/local/repositories/clientslots-release-repository/content/com/clientgaming/clientslots-package/$RELEASE_VERSION/clientslots-package-$RELEASE_VERSION-dist.zip -o $WORKSPACE/clientslots-package-$RELEASE_VERSION-dist.zip
+}
+
+##########################################################################
+# Use `curl` to send a message to Newrelic of the release including the
+# hostname this code is running on, description of the release, any changes
+# necessary, the user and the version of the package.
+##########################################################################
+function notify_newrelic () {
+curl -H "x-api-key:345235y4th35yj54j45h5n5yj67j5yt4hergveth4b6h4h6" \
+  -d "deployment[application_id]=1090095" -d "deployment[host]=$HOSTNAME" \
+  -d "deployment[description]=$DESCRIPTION" \
+  -d "deployment[revision]=$RELEASE_VERSION" \
+  -d "deployment[changelog]=$CHANGELOG" \
+  -d "deployment[user]=$USER" https://rpm.newrelic.com/deployments.xml
+}
+
+##########################################################################
+# Use `scp` to transfer the release cached on the workstation to the 
+# management node.
+##########################################################################
+function push_release() {
+scp -o ConnectTimeout=5 \
+  ${WORKSPACE}/clientslots-package-${RELEASE_VERSION}-dist.zip \
+  root@${MHOST}:/root/usersetup/nextgen/
+}
+
+##########################################################################
+# Use `ssh` with a here document to connect to the management node and run
+# the code that actually releases to each server node.
+##########################################################################
+function release() {
+ssh -ttA -o ConnectTimeout=5 root@${MHOST} << __EOF__
+cd /root/usersetup
+fab -R web installbundle2:version="$RELEASE_VERSION"
+exit
+__EOF__
+}
+
+while getopts "vhc:d:gnprw:" OPTION
+do
+  case $OPTION in
+    h)
+      usage
+      exit 0
+      ;;
+    c)
+      CHANGELOG="$OPTARG"
+      ;;
+    d)
+      DESCRIPTION="$OPTARG"
+      ;;   
+    g)
+      DOWNLOAD=false
+      ;;
+    n)
+      NOTIFY=false
+      ;;
+    p)
+      PUSH=false
+      ;;
+    r)
+      RELEASE=false
+      ;;
+    v)
+      set -x
+      ;;
+    w)
+      WORKSPACE="$OPTARG"
+      ;;
+    ?)
+      usage
+      exit 1
+  esac
+done
+
+shift $(( OPTIND - 1 ))
+RELEASE_VERSION="$1"
+
+if [[ -z $CHANGELOG ]] || [[ -z $DESCRIPTION ]] || [[ -z $RELEASE_VERSION ]]
+then
+  usage
+  exit 1
+fi 
+
+set -o nounset
+
+if [ ! -d $WORKSPACE ] 
+then
+  mkdir $WORKSPACE
+fi
+
+if $DOWNLOAD
+then
+  get_release
+fi
+
+if $PUSH
+then
+  push_release
+fi
+
+if $RELEASE 
+then
+  check_mhost
+  if $NOTIFY
+  then
+    notify_newrelic
+  fi
+  release
+fi
+
+exit
