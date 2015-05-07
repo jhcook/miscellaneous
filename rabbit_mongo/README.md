@@ -30,7 +30,9 @@ Copy the two Go files to a directory in $GOPATH/src/… and then execute `go bui
 The code that creates the random data and populates Mongo is “strata_gendata.go” and finishes by calculating and showing the percentage of 0s and 1s was generated:
 
 $ ./strata_gendata
+
 ...
+
 2015/01/25 18:02:00 {1 2015-01-25 18:02:00.914340023 +0000 GMT}
 2015/01/25 18:02:00 {1 2015-01-25 18:02:00.914495897 +0000 GMT}
 2015/01/25 18:02:00 {1 2015-01-25 18:02:00.915398275 +0000 GMT}
@@ -41,13 +43,20 @@ After creating the random data, Mongo shows the following:
 
 MongoDB shell version: 2.6.3
 connecting to: test
-use localdb
+
+> use localdb
+
 switched to db localdb
-show collections
+
+> show collections
+
 system.indexes
 test_data
-db.test_data.find().pretty()
+
+> db.test_data.find().pretty()
+
 ...
+
 {
 "_id" : ObjectId("54c52f98648407740c9aa880"),
 "value" : 0,
