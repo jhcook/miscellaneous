@@ -8,7 +8,7 @@ Tested: Mac OS X Yosemite
         Mac OS X El Capitan
         RHEL7
 
-Author: Justin Cook <Justin.Cook@performgroup.com>
+Author: Justin Cook <jhcook@gmail.com>
 """
 
 # Use multiple processors so sidestep the GIL
