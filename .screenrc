@@ -1,0 +1,7 @@
+vbell off 
+bindkey -k k; quit 
+altscreen on 
+hardstatus alwayslastline 
+hardstatus string '%{= wk}%-Lw%{= Rk}%50>%n%f* %t%{= wk}%+Lw%<%u %{= 
+kG}%-=%D %d %M %Y %c:%s%{-}' 
+multiuser on 
