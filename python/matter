@@ -1,0 +1,135 @@
+#!/usr/bin/env python2.6
+'''Mirror messages from Twitter to a Google Group. Reply's will be re:
+   to both the Group and Twitter.
+   TODO:
+     Signal handling
+     Config file
+     Proper logging
+     Twitter ID and subject mapping dont grow to infinity
+     I18N
+     HTML emails
+     Make more modular
+     Make more resilient
+     Parser is deprecated
+'''
+
+import pickle, smtplib, poplib       #Standard Python Modules
+import urllib2, twitter              #Imported Modules
+from sys import stderr, exit
+from email import parser, message_from_string
+from time import sleep 
+from re import search, sub
+from socket import error
+
+__gitid__ = "$Id$"
+
+def GetGoogleGroup():
+    '''Check a mailbox over POP and return a list of email to a specific
+       address.'''
+    try:
+        pop_conn = poplib.POP3_SSL('pop.gmail.com')
+        pop_conn.user('login.name')
+        pop_conn.pass_('password')
+        messages = [pop_conn.retr(i) for i in 
+                    range(1, len(pop_conn.list()[1]) + 1)]
+        pop_conn.quit()
+    except (poplib.error_proto, error):
+        return []
+    messages = ["\n".join(mssg[1]) for mssg in messages]
+    return [parser.Parser().parsestr(mssg) for mssg in messages]
+
+def SendGoogleGroup(frm, to, msgs):
+    if not msgs:
+        return False
+    try:
+        server = smtplib.SMTP('smtp.gmail.com:587')
+        server.starttls()
+        server.login('user.name', 'password')
+        for msg in msgs:
+            server.sendmail(frm, to, unicode(msg).encode('utf-8'))
+        server.quit()
+    except smtplib.SMTPConnectError:
+        return False
+    except (smtplib.SMTPHeloError, smtplib.SMTPAuthenticationError, 
+            smtplib.SMTPException):
+        return False
+    except (smtplib.SMTPRecipientsRefused, smtplib.SMTPSenderRefused, 
+            smtplib.SMTPDataError):
+        return False
+    return True
+
+def GetTwitterReplies(api, id=None):
+    messages = []
+    try:
+        reps = api.GetReplies(since_id=str(id))
+    except twitter.TwitterError:
+        return []
+    for rep in reps:
+        tmp = rep.AsDict()
+        try:
+            twitter_id_subject[tmp['id']] = \
+              twitter_id_subject[tmp['in_reply_to_status_id']]
+        except KeyError:
+            twitter_id_subject[tmp['id']] = \
+              '[tag] ' + ' '.join(tmp['text'].split()[1:6])
+        msg = 'Subject: %s\n\nFrom: http://twitter.com/%s\n\n%s' % (
+              twitter_id_subject[tmp['id']], 
+              tmp['user']['screen_name'], 
+              tmp['text'])
+        messages.append(msg)
+    if len(reps) > 19:
+        messages.extend(GetTwitterReplies(api, a[-1]['id']))
+    return messages
+
+if __name__ == "__main__":
+
+    ck = ''
+    cs = ''
+    atk = ''
+    ats = ''
+
+    a = twitter.Api(consumer_key=ck, consumer_secret=cs,
+                    access_token_key=atk, access_token_secret=ats,
+                    cache=None)
+    
+    global twitter_id_subject
+    twitter_id_subject = {}
+    try:
+        with open('dmpfile.dmp', 'rb') as fl:
+            twitter_id_subject = pickle.load(fl)
+    except IOError:
+        pass
+    
+    while True:
+        for message in GetGoogleGroup():
+            if message['to'] != 'list@addr.com':
+                continue
+            for part in message.walk():
+                if part.get_content_type() == 'text/plain':
+                    try:
+                        post = a.PostUpdate('%s...#tag' % (
+                            part.get_payload().strip().split('-- ')[0][0:128]))
+                        if search(r'[rR]+[eE]+:', message['subject']):
+                            twitter_id_subject[post.id] = message['subject']
+                        else:
+                            twitter_id_subject[post.id] = sub(r'\[tag\]', 
+                                r'[tag] Re:', message['subject']) 
+                    except twitter.TwitterError, e:
+                        print repr(e)
+                        with open('errfile.dmp', 'wb') as fl:
+                            pickle.dump(part, fl)
+                        continue
+        with open('dmpfile.dmp', 'wb') as fl:
+            pickle.dump(twitter_id_subject, fl)
+        sleep(300)
+
+        try:
+            id = sorted(twitter_id_subject.keys(), reverse=True)[0]
+        except IndexError:
+            id = None
+        SendGoogleGroup('from@email.com', 
+                        'to@email.com', 
+                        GetTwitterReplies(a, id))
+        with open('dmpfile.dmp', 'wb') as fl:
+            pickle.dump(twitter_id_subject, fl)
+        sleep(300)

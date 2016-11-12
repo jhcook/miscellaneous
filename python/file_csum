@@ -1,0 +1,377 @@
+#!/usr/bin/python3.4 -Es
+#
+# This file uses SHA256 to hash files recursively given a directory.
+# It skips files of type: directory, link, character/block device, & named
+# pipe.
+#
+# The dirname of the path is evaluated and checked if it belongs to a
+# block device. If not, it is skipped.
+#
+# Tested on: CentOS7
+#
+# Author: Justin Cook <jhcook@gmail.com>
+
+import os
+import signal
+import sqlite3
+import logging
+import ctypes
+from argparse import ArgumentParser
+from threading import Thread
+from sys import argv, platform, exit, stderr
+from time import sleep
+from stat import S_ISREG
+from hashlib import sha256
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import urlparse, parse_qs
+from json import dumps
+
+try:
+    import pyinotify
+    from daemonize import Daemonize
+except ImportError as e:
+    print(e, file=stderr)
+    exit(2)
+
+
+class Singleton(type):
+    """A metaclass for Singleton classes"""
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+        #else:
+        #    cls._instances[cls].__init__(*args, **kwargs)
+        return cls._instances[cls]
+
+class BlockDeviceFilesHash(metaclass=Singleton):
+    """
+    This class is used to abstract the storage and in-memory caching of 
+    file hashes. It has static member functions that check if the file
+    is on a valid block device and is a regular file, i.e. not symbolic
+    links or character devices, et al. 
+
+    This class uses a metaclass to ensure singleton pattern compliance. 
+    """
+    
+    unhashable = 0
+    ttl_hashed = 0
+    ttl_handld = 0 
+    ttl_stater = 0
+    ttl_noregf = 0
+    hashed_files = {}
+
+    @staticmethod
+    def __csum(fname):
+        """This method uses the sha256 algorithm by default to hash
+        files in chuncks of hash block size * 128 for the most efficient
+        use of syscalls. It uses a low-level syscall to use nonblocking
+        i/o for faster throughput. 
+        """
+        hasher = sha256()
+        # We do not want blocking as it can hang indefinitely. 
+        # Therefore, use os.open as a lower call.
+        try:
+            f = os.open(fname, os.O_RDONLY|os.O_NONBLOCK)
+            # Create an iterable through each read returning block size * 128.
+            # This is much more efficient taking advantage of buffer io and 
+            # readahead. At <EOF> an empty byte array is returned.
+            for chunk in iter(lambda: os.read(f, hasher.block_size*128), b''):
+                    hasher.update(chunk)
+            os.close(f)
+        except OSError as e:
+            BlockDeviceFilesHash.unhashable += 1
+            return hasher.name, fname, e
+        BlockDeviceFilesHash.ttl_hashed += 1
+        return hasher.name, fname, hasher.hexdigest()
+
+    @staticmethod
+    def __is_block_device(path):
+        """This static method takes a path name and checks if it is
+        mounted on a block device. It returns True if it is, 
+        otherwise False.
+        """
+        stat = os.stat(path).st_dev
+        # On Linux, block devices major:minor are listed in /sys/dev/block/.
+        # So, verify there is a path entry which matches st_dev.
+        if platform == 'linux':
+            return os.path.exists('/sys/dev/block/{0}:{1}'.format(os.major(stat),
+                                                                  os.minor(stat)))
+        else:
+            return True
+
+    @staticmethod
+    def __walk_from(dr='/'):
+        """This static method takes a path and walks each directory
+        recursively from the top down skipping symlinks. It checks
+        if each file is a regular file and calls the hash function
+        if so.
+        """
+        for path, _, files in os.walk(dr):
+            # If the directory is not part of a block device then skip it.
+            # Otherwise, we may end up hashing /dev/zero which never ends.
+            if not BlockDeviceFilesHash.__is_block_device(path):
+                continue
+            for fname in files:
+                fpname = os.path.join(path, fname)
+                try:
+                    BlockDeviceFilesHash.ttl_handld += 1
+                    stat = os.stat(fpname).st_mode
+                except OSError as e:
+                    BlockDeviceFilesHash.ttl_stater += 1
+                    #yield 'STAT', fpname, e
+                    continue
+                if S_ISREG(stat):
+                    yield BlockDeviceFilesHash.__csum(fpname)
+                else:
+                    BlockDeviceFilesHash.ttl_noregf += 1
+                    #yield 'null', fpname, 'not regular file'
+
+    @staticmethod
+    def create_cache(cache_name):
+        """This method creates a cache file populated with entries
+        from the in-memory dictionary so the cache may be used on
+        occassion where the system has lost memory, i.e. reboot.
+        """
+        conn = sqlite3.connect(cache_name)
+        ts = 'create table file_hashes (fname, hash, algo)'
+        conn.execute(ts)
+        try:
+            ti = 'insert into file_hashes(fname, hash, algo) values (?, ?, ?)'
+            # Create the hashmap in memory and then write all to disk.
+            # It is much, much faster since the disk isn't thrashing
+            # and commit isn't called over and over.
+            for algo, fname, hval in BlockDeviceFilesHash.__walk_from('/'):
+                BlockDeviceFilesHash.hashed_files[fname] = (str(hval), algo)
+            with conn:
+               try:
+                   conn.executemany(ti, [(f, BlockDeviceFilesHash.hashed_files[f][0], 
+                                          BlockDeviceFilesHash.hashed_files[f][1]) 
+                                         for f in BlockDeviceFilesHash.hashed_files.keys()])
+               except sqlite3.IntegrityError as e:
+                   logging.info(e)
+        except KeyboardInterrupt:
+            pass
+
+    @staticmethod
+    def read_cache(cache_name):
+        """If a cache file exists, open and populate the in-memory 
+        dictionary for optimal real-time use.
+        """
+        try:
+            conn = sqlite3.connect(cache_name)
+            BlockDeviceFilesHash.hashed_files = {n[0]: (n[1], n[2]) for n in 
+                                       conn.execute('select * from file_hashes')}
+        except:
+            pass
+
+class EventHandler(pyinotify.ProcessEvent):
+    def process_IN_CREATE(self, event):
+        logging.debug("fsintegservice: create {}".format(event.pathname))
+
+    def process_IN_DELETE(self, event):
+        logging.debug("fsintegservice: delete {}".format(event.pathname))
+
+class FSIntegService():
+    def __init__(self):
+        super(FSIntegService, self).__init__()
+        self.wm = pyinotify.WatchManager()
+        self.mask = pyinotify.IN_DELETE | pyinotify.IN_CREATE
+        self.handler = EventHandler()
+        self.notifier = pyinotify.Notifier(self.wm, self.handler)
+        self.wdd = self.wm.add_watch('/tmp', self.mask, rec=True)
+
+    def run(self):
+        logging.debug("fsintegservice: start")
+        self.notifier.loop()
+
+    def stop(self):
+        logging.debug("fsintegservice: exit")
+        self.notifier.stop()
+        try:
+            self.wm.close()
+        except:
+            pass
+
+class FSIntegIPC(Thread):
+    def __init__(self):
+        super(FSIntegIPC, self).__init__()
+
+    def setup_http_handler(self):
+        # Fire up the HTTP listener to make this useful
+        errors = 0
+        while errors < 3:
+            if errors > 0:
+                from time import sleep
+                sleep(60)
+            try:
+                HTTPDaemon = HTTPServer(('', 80), HTTPRequestHandler)
+                break
+            except PermissionError as e:
+                logging.error(e)
+                logging.info('fsintegipc: exiting on error')
+                return
+            except OSError as e:
+                logging.error(repr(e))
+                errors += 1
+        else:
+            return
+        try:
+            logging.info('fsintegipc: serving requests')
+            HTTPDaemon.serve_forever()
+        except OSError as e:
+            logging.info(e)
+        except SystemExit:
+            pass
+        logging.info('fsintegipc: closing server')
+        HTTPDaemon.server_close()
+
+    def stop(self):
+        # 64-bit hack? https://gist.github.com/liuw/2407154
+        res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                                                ctypes.c_long(self.ident),
+                                                ctypes.py_object(SystemExit))
+
+    def run(self):
+        self.setup_http_handler()
+
+class HTTPRequestHandler(BaseHTTPRequestHandler):
+    """This class provides a HTTP server for IPC. It is not optimized
+    for efficient production since it uses serialized JSON format
+    for exchange of information.
+    """
+    def do_GET(self):
+        """ Handle GET Request"""
+        parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
+        ip, port = self.client_address
+        if parsed.path in ('/fhash', '/status'):
+            cod = 200
+            self.send_response(cod)
+            self.send_header('Content-type', 'text/json')
+            self.send_header('Server', 'FSIntegJC/0.1b')
+            self.end_headers()
+            if parsed.path == '/fhash':
+                try:
+                    resp = BlockDeviceFilesHash.hashed_files[query['fl'][0]]
+                except KeyError as e:
+                    resp = ''
+            elif parsed.path == '/status':
+                resp = {'unhashable': BlockDeviceFilesHash.unhashable, 
+                        'ttl_hashed': BlockDeviceFilesHash.ttl_hashed, 
+                        'ttl_handld': BlockDeviceFilesHash.ttl_handld,  
+                        'ttl_stater': BlockDeviceFilesHash.ttl_stater, 
+                        'ttl_noregf': BlockDeviceFilesHash.ttl_noregf
+                       }
+            self.wfile.write(dumps(resp).encode())
+        else:
+            cod = 404
+            self.send_error(cod, 'File Not Found')
+            self.send_header('Content-type', 'text/json')
+            self.send_header('Server', 'FSIntegJC/0.1b')
+            self.end_headers()
+        logging.info('{} {} {} "{}" {} {}'.format(ip, port, self.command,
+                     self.path, self.request_version, cod))
+
+class FSIntegCache(Thread):
+
+    def setup_cache(self):
+        cache = BlockDeviceFilesHash()
+        cachedir = '/var/cache/fsinteg'
+        try:
+            if not os.path.exists(cachedir):
+                os.makedirs(cachedir)
+            if not os.path.exists(os.path.join(cachedir,'files.db')):
+                # No known cache, so create
+                logging.debug('fsintegcache: creating cache')
+                cache.create_cache(os.path.join(cachedir, 'files.db'))
+            else:
+                logging.debug('fsintegcache: reading cache')
+                cache.read_cache(os.path.join(cachedir, 'files.db'))
+        except IOError as e:
+            logging.error(e)
+        except SystemExit:
+            pass
+        logging.debug('fsintegcache: exiting')
+
+    def run(self):
+        self.setup_cache()
+
+    def stop(self):
+        # 64-bit hack? https://gist.github.com/liuw/2407154
+        res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                                                ctypes.c_long(self.ident),
+                                                ctypes.py_object(SystemExit)) 
+
+def ParseCmdline():
+    parser = ArgumentParser(description='Maintain integrity of filesystems')
+    parser.add_argument('-d', '--daemon', action='store_true', dest='daemon',
+                        help='daemonize')
+    return parser.parse_args()
+
+def sighandler(signum, frame):
+    logging.debug("Caught signal: {}".format(signum))
+    raise SystemExit("Exiting on signal: {}".format(signum))
+
+def main():
+    # Setup signal handlers for clean exit
+    signal.signal(signal.SIGTERM, sighandler)
+    signal.signal(signal.SIGINT, sighandler)
+
+    try:
+        logging.basicConfig(filename='/var/log/fsinteg.log', 
+                            level=logging.DEBUG,
+           format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    except PermissionError as e:
+        print(e, file=stderr)
+        exit(1)
+    logging.info('fsinteg: starting')
+    fscache = FSIntegCache()
+    ipc_serv = FSIntegIPC()
+    fscache.start()
+    try:
+        ipc_serv.start()
+        while True:
+            if fscache.is_alive():
+                sleep(2)
+            else:
+                break
+        fscache.join(600)
+    except SystemExit:
+        ipc_serv.stop()
+        ipc_serv.join()
+        exit(0)
+    fsserv = FSIntegService()
+    while True:
+        try:
+            fsserv.run()
+           # if (ipc_serv.is_alive()): # or fsserv.is_alive()):
+           #     sleep(2)
+           # else:
+           #     break
+        except SystemExit:
+            break
+    ipc_serv.stop()
+    fsserv.stop()
+    ipc_serv.join()
+    logging.info("fsinteg: exiting")
+
+if __name__ == '__main__':
+    # Get command line arguments
+    args = ParseCmdline()
+
+    # Check if root
+    if os.geteuid() != 0:
+        print("Effective user must be root", file=stderr)
+        exit(1)
+
+    # If called to daemonize do so.
+    if args.daemon:
+        daemon = Daemonize(app="fs_integrity", 
+                           pid='/run/fsinteg.pid',
+                           action=main)
+        daemon.start()
+    else:
+        main()
+    exit(0)

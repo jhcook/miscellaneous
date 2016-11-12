@@ -1,0 +1,58 @@
+Perform the following actions to use this code:
+
+Install RHEL6
+1. # yum update
+2. # yum install gcc
+3. # yum install python-devel
+4. # yum install python-setuptools
+5. # easy_install fabric
+
+
+Install the RPM rhlfdigester
+
+Create a "config file" as /etc/rhlfdigester/main.cfg and put each hostname
+on a single line:
+
+$ cat /etc/rhlfdigester/main.cfg 
+ec2-54-217-130-103.eu-west-1.compute.amazonaws.com
+ec2-54-217-65-26.eu-west-1.compute.amazonaws.com
+
+
+The command help output:
+
+$ rhlfdigester -h
+usage: rhlfdigester [options]
+
+rhlfdigester is used to cache remote files
+
+OPTIONS:
+   -h      Show this message
+   -c      Configruation file
+   -d      Directory to cache retrieved files
+   -l      Specify logfile
+   -s      Main configuration file section
+   -t      Timeout (defaults to 5) in seconds
+   -u      Username to use with remote hosts
+   -v      Verbose output
+   -w      License information
+
+EXAMPLE:
+rhlfdigester -c /path/to/config -d /storage/dir
+
+
+RPM information:
+
+$ rpm -qip rpmbuild/RPMS/noarch/rhlfdigester-0.01b-1.el6.noarch.rpm 
+Name        : rhlfdigester                 Relocations: (not relocatable)
+Version     : 0.01b                             Vendor: (none)
+Release     : 1.el6                         Build Date: Sun 22 Sep 2013 06:52:54 AM GMT
+Install Date: (not installed)               Build Host: jcsc6vm1
+Group       : Applications/Archiving        Source RPM: rhlfdigester-0.01b-1.el6.src.rpm
+Size        : 5592                             License: GPL3
+Signature   : (none)
+URL         : https://github.com/jhcook/rhlfdigester/tree/master
+Summary     : Consumes log files from individual hosts via SSH
+Description :
+This utility fetches log files from hosts specified in
+/etc/rhlfdigester/main.cfg to a local directory for futher consumption
+by other processes.

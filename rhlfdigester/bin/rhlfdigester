@@ -1,0 +1,195 @@
+#!/bin/env sh
+# 
+# This code copies files from remote hosts configured in 
+# /etc/rhlfdigester/main.cfg to the local host this code is running on and 
+# stores it locally by default in ~/apache_logs/<HOSTNAME>_access_log or 
+# that specified by command line switch -d <DIRNAME>.
+#
+# TODO: 1) more dynamic fabfile (check for existence, age, location discovery)
+#       2) mature library for dealing with configuration file
+#       3) more dynamic calculation on parallel connections in Fabric
+#       4) logging to syslog 
+#       5) more modularization 
+#       6) introduce TDD framework
+#       7) logrotate addition for self logs
+#       8) more handling of erroneous transfers (backoff retry, return code)
+#       9) better handling of stderr and stdout
+#      10) hosts and associated information moved to database (sqlite or ldap)
+#      11) better error handling
+#
+# Exit codes: 1) incorrect syntax upon invocation
+#             2) config file does not exist or syntax not parsing
+#             4) working directory cannot be created or is not writable 
+#             8) Fabric is not found in path or not installed
+#
+# Copyright (C) 2013 Justin Cook
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+set -e
+
+CFGFILE='/etc/rhlfdigester/main.cfg'
+SECTION='HOSTS'
+WORKDIR="${HOME}/apache_logs"
+TIMEOUT='5'
+LOGFILE='rhlfdigester.log'
+USRNAME=`whoami`
+VERBOSE=1
+
+function usage() {
+  cat << __EOF__
+usage: `basename $0` [options]
+
+`basename $0` is used to cache remote files
+
+OPTIONS:
+   -h      Show this message
+   -c      Configruation file
+   -d      Directory to cache retrieved files
+   -l      Specify logfile
+   -s      Main configuration file section
+   -t      Timeout (defaults to 5) in seconds
+   -u      Username to use with remote hosts
+   -v      Verbose output
+   -w      License information
+
+EXAMPLE:
+`basename $0` -c /path/to/config -d /storage/dir
+__EOF__
+}
+
+# Check and see if Fabric is installed; otherwise, bail loudly.
+
+type fab >/dev/null 2>&1 || { printf "Fabric is not found!\n" ; exit 8 ; }
+
+# Check for command-line switches and values passed in from caller.
+
+while getopts "vwhc:d:l:s:t:u:" OPTION
+do
+  case ${OPTION} in
+    h)
+      usage
+      exit 0
+      ;;
+    c)
+      CFGFILE="${OPTARG}"
+      ;;
+    d)
+      WORKDIR="${OPTARG}"
+      ;;   
+    l)
+      LOGFILE="${OPTARG}"
+      ;;
+    s)
+      SECTION="${OPTARG}"
+      ;;
+    t)
+      TIMEOUT="${OPTARG}"
+      ;;
+    u)
+      USRNAME="${OPTARG}"
+      ;;
+    v)
+      VERBOSE=0
+      set -x
+      ;;
+    w)
+      printf "`basename $0`: Copyright (C) 2013 Justin Cook\n" 
+      printf "This program comes with ABSOLUTELY NO WARRANTY;\n"
+      printf "This is free software, and you are welcome to redistribute it\n"
+      printf "under certain conditions.\n"
+      exit 0
+      ;;
+    ?)
+      usage
+      exit 1
+  esac
+done
+
+# Make sure the environment is sane before making any destructive changes
+# in order of:
+#   1) config file
+#   2) existence of or ability to create writable cache directory
+#   3) ability to create fabfile
+
+# Look in the configuration file and establish variables for existing
+# entries in the specified section.
+
+if [ -f "${CFGFILE}" ]
+then
+ IFS=$'\r\n' HOSTS=($(cat ${CFGFILE})) \
+  || { printf "${CFGFILE}: syntax error\n" ; exit 2 ; }
+else
+  printf "${CFGFILE}: file cannot be found\n"
+  exit 2
+fi
+
+# Check if the cache directory exists and can be written to or attempt
+# to create it; otherwise, bail loudly.
+
+if [ -d "${WORKDIR}" ]
+then
+  if [ ! -w "${WORKDIR}" ]
+  then
+    chmod u+w "${WORKDIR}" || { printf "${WORKDIR}: cannot write to\n" ; exit 4 ; }
+  fi
+else
+  umask 0022
+  mkdir -p "${WORKDIR}" || { printf "${WORKDIR}: cannot create\n" ; exit 4 ; }
+fi
+
+# Create the fabfile in the current directory. 
+
+if [ "${VERBOSE}" ]
+then
+  VERBOSE='who_cares=None,'
+else
+  VERBOSE='hide("warnings"  "running", "stdout", "stderr"),'
+fi
+
+cat > fabfile.py << __EOF__
+import logging
+from fabric.api import get, env, settings, hide, sudo
+from fabric.decorators import parallel
+
+logger = logging.getLogger('rhlfdigester')
+logger.setLevel(logging.DEBUG)
+lfile = logging.FileHandler("${LOGFILE}")
+lfile.setFormatter(logging.Formatter(
+                   '%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+logger.addHandler(lfile)
+
+@parallel(pool_size=5)
+def collect_log():
+    with settings(${VERBOSE} warn_only=True):
+        try:
+            sudo('cp /var/log/httpd/access_log /tmp/')
+            get('/tmp/access_log', 
+                "${WORKDIR}/%s_access_log" % env.host_string)
+            sudo('rm /tmp/access_log')
+        except Exception, e:
+            logger.error("%s: %s" % (env.host_string, e))
+__EOF__
+
+# Cleanup after exit by deleting the fabfile both in plaintext and bytecode.
+
+trap "rm fabfile.py{,?}"  INT TERM EXIT
+
+# Call Fabric to do the transfer of files.
+
+ALLHOSTS=$(IFS=',' ;  echo "${HOSTS[*]}")
+fab -u ${USRNAME} -t ${TIMEOUT} -H ${ALLHOSTS} collect_log 2>&1 | while read ln
+do
+  echo "`date`: $ln" >> ${LOGFILE}
+done
