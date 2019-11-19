@@ -11,17 +11,19 @@ from os.path import expanduser, isdir
 from os import mkdir
 from json import dumps
 from urllib.error import HTTPError
-import ssl
+from sys import stdout
+import ssl, logging
 
 # Global variables for auth, object identity, remote provider, 
-# and cache location
+# cache location, and logger.
 auth_eml = ""
 auth_key = ""
 dns_rcrd = ""
 dns_znid = ""
 dns_rcid = ""
-rem_prov = "https://checkip.amazonaws.com"
 cach_dir = expanduser("~/Library/Application Support/CloudflareDNS/")
+logging.basicConfig(stream=stdout, level=logging.DEBUG,
+                    format="%(asctime)s:%(levelname)s:%(message)s")
 
 def get_cache():
   """Return the last known IP address.
@@ -33,8 +35,9 @@ def get_cache():
   try:
     with open(cach_dir + dns_rcrd, 'r') as cache:
       return cache.read().strip()
-  except IOError:
-    return ''
+  except IOError as err:
+    logging.debug(err)
+    return None
 
 def get_local():
   """Returns the IP address fetched from a specific provider.
@@ -45,9 +48,10 @@ def get_local():
   ctx.check_hostname = False
   ctx.verify_mode = ssl.CERT_NONE
   try:
-    stf = request.urlopen(rem_prov, context=ctx)
+    stf = request.urlopen("https://checkip.amazonaws.com", context=ctx)
   except urllib.error.URLError as err:
-    return err
+    logging.debug(err)
+    return None
   return stf.read().decode("utf-8").strip()
 
 def update_remote(ip_addr):
@@ -60,10 +64,10 @@ def update_remote(ip_addr):
   ctx = ssl.create_default_context()
   ctx.check_hostname = False
   ctx.verify_mode = ssl.CERT_NONE
-  data = dumps({ "type": "A",
+  data = dumps({ "type": "A", 
                  "name": "{}".format(dns_rcrd),
                  "content": "{}".format(ip_addr),
-                 "ttl": 300,
+                 "ttl": 300, 
                  "proxied": False }).encode('utf-8')
   try:
     url = "https://api.cloudflare.com/client/v4/zones/{}/dns_records/{}"
@@ -73,6 +77,7 @@ def update_remote(ip_addr):
     req.add_header("Content-Type", "application/json")
     request.urlopen(req, data=data, context=ctx)
   except HTTPError as err:
+    logging.debug(err)
     print(err)
 
 def update_cache(ip_addr):
@@ -87,16 +92,26 @@ def update_cache(ip_addr):
     with open(cach_dir + dns_rcrd, 'w') as cache:
       cache.write(ip_addr)
   except IOError as err:
+    logging.debug(err)
     print(err)
 
 if __name__ == "__main__":
   # Look in local cache for the last known address
   known_ip_addr = get_cache()
+  logging.info(known_ip_addr)
 
   # Fetch the current local address
   ip_addr = get_local()
+  logging.info(ip_addr)
 
   # If the cache and local do not match update remote and cache
-  if known_ip_addr != ip_addr:
+  if not ip_addr:
+    logging.critical("unable to retrieve IP")
+  elif known_ip_addr != ip_addr:
+    logging.info("updating remote")
     update_remote(ip_addr)
+    logging.info("updating cache")
     update_cache(ip_addr)
+  else:
+    logging.info("no update")
+
