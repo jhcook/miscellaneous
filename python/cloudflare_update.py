@@ -10,9 +10,11 @@ from urllib import request
 from os.path import expanduser, isdir
 from os import mkdir
 from json import dumps
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
+from ssl import create_default_context, CERT_NONE
 from sys import stdout
-import ssl, logging
+from inspect import currentframe
+import logging
 
 # Global variables for auth, object identity, remote provider, 
 # cache location, and logger.
@@ -36,7 +38,7 @@ def get_cache():
     with open(cach_dir + dns_rcrd, 'r') as cache:
       return cache.read().strip()
   except IOError as err:
-    logging.debug(err)
+    logging.debug("{0}: {1}".format(currentframe().f_code.co_name, err))
     return None
 
 def get_local():
@@ -44,13 +46,13 @@ def get_local():
   
   Fetch the IP address from a remote source and return as a string.  
   """
-  ctx = ssl.create_default_context()
+  ctx = create_default_context()
   ctx.check_hostname = False
-  ctx.verify_mode = ssl.CERT_NONE
+  ctx.verify_mode = CERT_NONE
   try:
     stf = request.urlopen("https://checkip.amazonaws.com", context=ctx)
-  except urllib.error.URLError as err:
-    logging.debug(err)
+  except URLError as err:
+    logging.debug("{0}: {1}".format(currentframe().f_code.co_name, err))
     return None
   return stf.read().decode("utf-8").strip()
 
@@ -61,9 +63,9 @@ def update_remote(ip_addr):
   the supplied ip address. 
   """
   global auth_eml, auth_key, dns_rcrd, dns_znid
-  ctx = ssl.create_default_context()
+  ctx = create_default_context()
   ctx.check_hostname = False
-  ctx.verify_mode = ssl.CERT_NONE
+  ctx.verify_mode = CERT_NONE
   data = dumps({ "type": "A", 
                  "name": "{}".format(dns_rcrd),
                  "content": "{}".format(ip_addr),
@@ -77,8 +79,7 @@ def update_remote(ip_addr):
     req.add_header("Content-Type", "application/json")
     request.urlopen(req, data=data, context=ctx)
   except HTTPError as err:
-    logging.debug(err)
-    print(err)
+    logging.debug("{0}: {1}".format(currentframe().f_code.co_name, err))
 
 def update_cache(ip_addr):
   """Update the local cache with supplied IP address.
@@ -86,23 +87,22 @@ def update_cache(ip_addr):
   Creates and updates the cache with the supplied IP address.
   """
   global cach_dir, dns_rcrd
-  if not isdir(cach_dir):
-    mkdir(cach_dir)
   try:
+    if not isdir(cach_dir):
+      mkdir(cach_dir)
     with open(cach_dir + dns_rcrd, 'w') as cache:
       cache.write(ip_addr)
-  except IOError as err:
-    logging.debug(err)
-    print(err)
+  except Exception as err:
+    logging.debug("{0}: {1}".format(currentframe().f_code.co_name, err))
 
 if __name__ == "__main__":
   # Look in local cache for the last known address
   known_ip_addr = get_cache()
-  logging.info(known_ip_addr)
+  logging.info("cached addr: {0}".format(known_ip_addr))
 
   # Fetch the current local address
   ip_addr = get_local()
-  logging.info(ip_addr)
+  logging.info("current addr: {0}".format(ip_addr))
 
   # If the cache and local do not match update remote and cache
   if not ip_addr:
