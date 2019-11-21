@@ -12,7 +12,7 @@ from os import mkdir
 from json import dumps
 from urllib.error import HTTPError, URLError
 from ssl import create_default_context, CERT_NONE
-from sys import stdout
+from sys import stdout, exit
 from inspect import currentframe
 import logging
 
@@ -80,6 +80,7 @@ def update_remote(ip_addr):
     request.urlopen(req, data=data, context=ctx)
   except HTTPError as err:
     logging.debug("{0}: {1}".format(currentframe().f_code.co_name, err))
+    raise err
 
 def update_cache(ip_addr):
   """Update the local cache with supplied IP address.
@@ -109,7 +110,10 @@ if __name__ == "__main__":
     logging.critical("unable to retrieve IP")
   elif known_ip_addr != ip_addr:
     logging.info("updating remote")
-    update_remote(ip_addr)
+    try:
+      update_remote(ip_addr)
+    except HTTPError:
+      exit(1)
     logging.info("updating cache")
     update_cache(ip_addr)
   else:
