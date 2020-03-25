@@ -294,6 +294,71 @@ def fetch_snapshots(ec2, account_id):
   """
   return ec2.describe_snapshots(OwnerIds = [account_id,])
 
+def fetch_amis(ec2):
+  """Get the AMIs
+  {
+    'Images': [
+        {
+            'Architecture': 'i386'|'x86_64'|'arm64',
+            'CreationDate': 'string',
+            'ImageId': 'string',
+            'ImageLocation': 'string',
+            'ImageType': 'machine'|'kernel'|'ramdisk',
+            'Public': True|False,
+            'KernelId': 'string',
+            'OwnerId': 'string',
+            'Platform': 'Windows',
+            'PlatformDetails': 'string',
+            'UsageOperation': 'string',
+            'ProductCodes': [
+                {
+                    'ProductCodeId': 'string',
+                    'ProductCodeType': 'devpay'|'marketplace'
+                },
+            ],
+            'RamdiskId': 'string',
+            'State': 'pending'|'available'|'invalid'|'deregistered'|'transient'|'failed'|'error',
+            'BlockDeviceMappings': [
+                {
+                    'DeviceName': 'string',
+                    'VirtualName': 'string',
+                    'Ebs': {
+                        'DeleteOnTermination': True|False,
+                        'Iops': 123,
+                        'SnapshotId': 'string',
+                        'VolumeSize': 123,
+                        'VolumeType': 'standard'|'io1'|'gp2'|'sc1'|'st1',
+                        'KmsKeyId': 'string',
+                        'Encrypted': True|False
+                    },
+                    'NoDevice': 'string'
+                },
+            ],
+            'Description': 'string',
+            'EnaSupport': True|False,
+            'Hypervisor': 'ovm'|'xen',
+            'ImageOwnerAlias': 'string',
+            'Name': 'string',
+            'RootDeviceName': 'string',
+            'RootDeviceType': 'ebs'|'instance-store',
+            'SriovNetSupport': 'string',
+            'StateReason': {
+                'Code': 'string',
+                'Message': 'string'
+            },
+            'Tags': [
+                {
+                    'Key': 'string',
+                    'Value': 'string'
+                },
+            ],
+            'VirtualizationType': 'hvm'|'paravirtual'
+        },
+    ]
+  }
+  """
+  return ec2.describe_images(Owners=['self'])
+
 if __name__ == '__main__':
   # Read the command line for the tag name(s) and AWS information
   cmdargs = parse_args()
@@ -309,6 +374,7 @@ if __name__ == '__main__':
   instances = fetch_instances(ec2)
   volumes = fetch_volumes(ec2)
   snapshots = fetch_snapshots(ec2, account_id)
+  amis = fetch_amis(ec2)
 
   # Display instance tags
   for reservation in instances['Reservations']:
@@ -342,7 +408,7 @@ if __name__ == '__main__':
       	print("null")
       
 
-  # Finally, lets display snapshots
+  # Now lets display snapshots
   for snapshot in snapshots['Snapshots']:
     print(f"***** {snapshot['SnapshotId']} *****")
     for tag_name in tag_names:
@@ -356,6 +422,21 @@ if __name__ == '__main__':
       	  print("null")
       except KeyError:
       	print("null")
+
+  # Finally, let's display AMIs
+  for ami in amis['Images']:
+    print(f"***** {ami['ImageId']} *****")
+    for tag_name in tag_names:
+      print(f"{tag_name}:", end=" ")
+      try:
+        for tag in ami['Tags']:
+          if tag['Key'] == tag_name:
+            print(f"{tag['Value']}")
+            break
+        else:
+          print("null")
+      except KeyError:
+        print("null")
 
   #cya
 
