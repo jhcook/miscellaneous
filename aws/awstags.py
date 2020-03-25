@@ -263,7 +263,7 @@ def fetch_volumes(ec2):
 """
   return ec2.describe_volumes()
 
-def fetch_snapshots(ec2):
+def fetch_snapshots(ec2, account_id):
   """Get the snapshots
   {
     'Snapshots': [
@@ -292,7 +292,7 @@ def fetch_snapshots(ec2):
     'NextToken': 'string'
   }
   """
-  return ec2.describe_snapshots()
+  return ec2.describe_snapshots(OwnerIds = [account_id,])
 
 if __name__ == '__main__':
   # Read the command line for the tag name(s) and AWS information
@@ -302,12 +302,13 @@ if __name__ == '__main__':
   # Setup the default AWS profile and region
   boto3.setup_default_session(profile_name=cmdargs.aws_profile, 
                               region_name=cmdargs.aws_region)
+  account_id = boto3.client('sts').get_caller_identity().get('Account')
   ec2 = boto3.client('ec2')
 
   # Get the objects from AWS
   instances = fetch_instances(ec2)
   volumes = fetch_volumes(ec2)
-  snapshots = fetch_snapshots(ec2)
+  snapshots = fetch_snapshots(ec2, account_id)
 
   # Display instance tags
   for reservation in instances['Reservations']:
