@@ -18,6 +18,8 @@ then
   exit 1
 fi
 
+trap exit SIGINT
+
 for region in `aws ec2 describe-regions --all-regions --query \
   "Regions[].{Name:RegionName}" --output text` ; do
   ./awstags.py $1 ${region} $2 > $2-${region}.txt
