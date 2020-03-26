@@ -27,6 +27,9 @@ def parse_args():
   return parser.parse_args()
 
 def search_tags(tag_names, obj):
+  """Search through tag_names in the object tags and print value found
+     otherwise null.
+  """
   for tag_name in tag_names:
     print(f"{tag_name}:", end=" ")
     try:
@@ -384,7 +387,12 @@ if __name__ == '__main__':
   # Setup the default AWS profile and region
   boto3.setup_default_session(profile_name=cmdargs.aws_profile, 
                               region_name=cmdargs.aws_region)
-  account_id = boto3.client('sts').get_caller_identity().get('Account')
+  try:
+    account_id = boto3.client('sts').get_caller_identity().get('Account')
+  except ClientError as err:
+    if err.response['Error']['Code'] == 'InvalidClientTokenId':
+      sys.exit(1)
+
   ec2 = boto3.client('ec2')
 
   # Get the objects from AWS
