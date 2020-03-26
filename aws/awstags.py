@@ -9,6 +9,7 @@ import argparse, json, sys
 
 try:
   import boto3
+  from botocore.exceptions import ClientError
 except ImportError as e:
   print(e)
   sys.exit(1)
@@ -18,10 +19,25 @@ def parse_args():
   here.
   """
   parser = argparse.ArgumentParser()
-  parser.add_argument("tag_names", help="comma-separated list of tags", type=str)
-  parser.add_argument("aws_region", help="AWS region to interrogate", type=str)
+  parser.add_argument("tag_names", help="comma-separated list of tags",
+                      type=str)
+  parser.add_argument("aws_region", help="AWS region to interrogate",
+                      type=str)
   parser.add_argument("aws_profile", help="AWS profile to use", type=str)
   return parser.parse_args()
+
+def search_tags(tag_names, obj):
+  for tag_name in tag_names:
+    print(f"{tag_name}:", end=" ")
+    try:
+      for tag in obj['Tags']:
+        if tag['Key'] == tag_name:
+          print(f"{tag['Value']}")
+          break
+      else:
+        print("null")
+    except KeyError:
+      print("null")
 
 def fetch_instances(ec2):
   """Get the instances
@@ -359,6 +375,7 @@ def fetch_amis(ec2):
   """
   return ec2.describe_images(Owners=['self'])
 
+
 if __name__ == '__main__':
   # Read the command line for the tag name(s) and AWS information
   cmdargs = parse_args()
@@ -379,64 +396,22 @@ if __name__ == '__main__':
   # Display instance tags
   for reservation in instances['Reservations']:
     for instance in reservation['Instances']:
-      print(f"***** {instance['InstanceId']} *****")
-      for tag_name in tag_names:
-        print(f"{tag_name}:", end=" ")
-        try:
-          for tag in instance['Tags']:
-            if tag['Key'] == tag_name: 
-              print(f"{tag['Value']}")
-              break
-          else:
-            print("null")
-        except KeyError:
-          print("null")
+      print(f"\n***** {instance['InstanceId']} *****")
+      search_tags(tag_names, instance)
 
   # Now let's display volumes
   for volume in volumes['Volumes']:
-    print(f"***** {volume['VolumeId']} *****")
-    for tag_name in tag_names:
-      print(f"{tag_name}:", end=" ")
-      try:
-        for tag in volume['Tags']:
-          if tag['Key'] == tag_name:
-      	    print(f"{tag['Value']}")
-      	    break
-        else:
-      	  print("null")
-      except KeyError:
-      	print("null")
-      
+    print(f"\n***** {volume['VolumeId']} *****")
+    search_tags(tag_names, volume)
 
   # Now lets display snapshots
   for snapshot in snapshots['Snapshots']:
-    print(f"***** {snapshot['SnapshotId']} *****")
-    for tag_name in tag_names:
-      print(f"{tag_name}:", end=" ")
-      try:
-        for tag in snapshot['Tags']:
-          if tag['Key'] == tag_name:
-      	    print(f"{tag['Value']}")
-      	    break
-        else:
-      	  print("null")
-      except KeyError:
-      	print("null")
+    print(f"\n***** {snapshot['SnapshotId']} *****")
+    search_tags(tag_names, snapshot)
 
   # Finally, let's display AMIs
   for ami in amis['Images']:
-    print(f"***** {ami['ImageId']} *****")
-    for tag_name in tag_names:
-      print(f"{tag_name}:", end=" ")
-      try:
-        for tag in ami['Tags']:
-          if tag['Key'] == tag_name:
-            print(f"{tag['Value']}")
-            break
-        else:
-          print("null")
-      except KeyError:
-        print("null")
+    print(f"\n***** {ami['ImageId']} *****")
+    search_tags(tag_names, ami)
 
   #cya
-
