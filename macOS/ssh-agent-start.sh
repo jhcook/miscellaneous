@@ -46,13 +46,17 @@ fi
 for pid in $(ps aux | awk "\$11 ~ /ssh-agent/ && \$1 ~ /`whoami`/ {print\$2}" | sort)
 do # Get the pid and find the associated agent's socket
   ssh_agent_pid=${pid}
-  ssh_auth_sock=`find ${TMPDIR} -name agent.$((${pid}-1)) 2>/dev/null`
-  if check_pid_and_socket $ssh_agent_pid $ssh_auth_sock
+  ssh_auth_sock=`find ${TMPDIR} -type s -name agent.$((${pid}-1)) 2>/dev/null`
+  # Check to see if a file was actually found.
+  if [ ! -z "${ssh_auth_sock}" ]
   then
-    printf "SSH_AUTH_SOCK=${ssh_auth_sock}; export SSH_AUTH_SOCK;\n"
-    printf "SSH_AGENT_PID=${ssh_agent_pid}; export SSH_AGENT_PID;\n"
-    printf "echo Agent pid ${ssh_agent_pid}\n"
-    exit
+    if check_pid_and_socket $ssh_agent_pid $ssh_auth_sock
+    then
+      printf "SSH_AUTH_SOCK=${ssh_auth_sock}; export SSH_AUTH_SOCK;\n"
+      printf "SSH_AGENT_PID=${ssh_agent_pid}; export SSH_AGENT_PID;\n"
+      printf "echo Agent pid ${ssh_agent_pid}\n"
+      exit
+    fi
   fi
 done
 
