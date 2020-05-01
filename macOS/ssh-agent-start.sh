@@ -8,25 +8,26 @@
 # Usage: eval `basename $0`
 # Author: Justin Cook <jhcook@secnix.com>
 
-#set -x
 set -o nounset
 set -o pipefail
 
-start_ssh_agent() {
-  ssh-agent -s
-}
-
+# Convenient function that takes to parameters.
+# $1 a pid it checks to see if running
+# $2 a file it checks to see if owned by user and a socket
 check_pid_and_socket() {
   if kill -s 0 $1 2>/dev/null
-  then 
-    if [ -O "$2" ] && [ -S "$2" ]
-    then
-      return 0
-    else
-      kill -9 $1 2>/dev/null || /bin/true
+  then # Process is running
+    if [ -O "$2" ]
+    then # File is a owned by user
+      if [ -S "$2" ] 
+      then # File is a socket
+        return 0
+      else 
+        kill -9 $1 2>/dev/null || /bin/true
+      fi
     fi
-    return 1
   fi
+  return 1
 }
 
 # If the env has an operating ssh-agent, bail.
@@ -53,4 +54,4 @@ do
 done
 
 # If we landed here we must start an agent as nothing was found
-start_ssh_agent
+ssh-agent -s
