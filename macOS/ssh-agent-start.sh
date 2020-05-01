@@ -11,9 +11,11 @@
 set -o nounset
 set -o pipefail
 
-# Convenient function that takes to parameters.
+# Convenient function that takes two parameters.
 # $1 a pid it checks to see if running
 # $2 a file it checks to see if owned by user and a socket
+# This folds out running -> owned by -> socket before terminating
+# to be pedantic given root can terminate other user's processes.
 check_pid_and_socket() {
   if kill -s 0 $1 2>/dev/null
   then # Process is running
@@ -21,7 +23,7 @@ check_pid_and_socket() {
     then # File is a owned by user
       if [ -S "$2" ] 
       then # File is a socket
-        return 0
+        return 0 # All checks out, so return success
       else 
         kill -9 $1 2>/dev/null || /bin/true
       fi
@@ -39,9 +41,10 @@ then
   fi
 fi
 
-# Iterate through all pids that are ssh-agent and are owned by the current user
+# Iterate through all pids that are ssh-agent and are owned by the current user.
+# If a pair is found that checks out, print the information to be consumed.
 for pid in $(ps aux | awk "\$11 ~ /ssh-agent/ && \$1 ~ /`whoami`/ {print\$2}" | sort)
-do
+do # Get the pid and find the associated agent's socket
   ssh_agent_pid=${pid}
   ssh_auth_sock=`find ${TMPDIR} -name agent.$((${pid}-1)) 2>/dev/null`
   if check_pid_and_socket $ssh_agent_pid $ssh_auth_sock
