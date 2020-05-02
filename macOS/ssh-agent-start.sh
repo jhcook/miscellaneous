@@ -33,9 +33,10 @@ check_pid_and_socket() {
 }
 
 # If the env has an operating ssh-agent, bail.
-if [ -z ${SSH_AGENT_PID+x} ] && [ -z ${SSH_AUTH_SOCK+x} ]
+if [ ! -z ${SSH_AGENT_PID+x} ] && [ ! -z ${SSH_AUTH_SOCK+x} ]
 then
-  if [ `check_pid_and_socket "${SSH_AGENT_PID}" "${SSH_AUTH_SOCK}"` ]
+  check_pid_and_socket ${SSH_AGENT_PID} ${SSH_AUTH_SOCK}
+  if [ $? -eq 0 ]
   then # We're good
     exit
   fi
