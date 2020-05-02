@@ -43,10 +43,13 @@ fi
 
 # Iterate through all pids that are ssh-agent and are owned by the current user.
 # If a pair is found that checks out, print the information to be consumed.
-for pid in $(ps aux | awk "\$11 ~ /ssh-agent/ && \$1 ~ /`whoami`/ {print\$2}" | sort)
+for pid in $(ps aux | \
+             awk "\$11 ~ /ssh-agent/ && \$1 ~ /`id -un`/ {print\$2}" | \
+             sort -r)
 do # Get the pid and find the associated agent's socket
   ssh_agent_pid=${pid}
-  ssh_auth_sock=`find ${TMPDIR} -type s -name agent.$((${pid}-1)) 2>/dev/null`
+  ssh_auth_sock=`find ${TMPDIR} -user $(id -un) -type s \
+                 -name agent.$((${pid}-1)) 2>/dev/null`
   # Check to see if a file was actually found.
   if [ ! -z "${ssh_auth_sock}" ]
   then
