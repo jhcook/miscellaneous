@@ -4,9 +4,9 @@
 # with a frequency of random delimiters separating the string into evenly
 # divided fields.
 #
-# Clearly, this is ideal for creating passwords. Some password have limitations
-# such as characters and length. Use the command-line options to sort as
-# appropriate.
+# Clearly, this is ideal for creating passwords and tokens. Some applications
+# and APIs have limitations such as characters and length. Use the command-line
+# options to sort as appropriate.
 #
 # Usage: `basename $0` <delimiter> <length>
 #
@@ -36,14 +36,14 @@ else
 fi
 _rc="`LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c $_ct`"
 
-# If delimiter is '' then print _rc
+# If delimiter is '' then print _rc and exit
 if [ "$_dl" = '' ]
 then
   echo $_rc
   exit
 fi
 
-# Loop and create a '-' divided string
+# Loop and create a delimiter divided string
 _pd=""
 p='printf %s'
 for i in `seq 0 $_fr $(($_ct-$_fr))`
