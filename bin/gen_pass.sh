@@ -36,6 +36,13 @@ else
 fi
 _rc="`LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c $_ct`"
 
+# If delimiter is '' then print _rc
+if [ "$_dl" = '' ]
+then
+  echo $_rc
+  exit
+fi
+
 # Loop and create a '-' divided string
 _pd=""
 p='printf %s'
