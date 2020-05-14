@@ -1,0 +1,2 @@
+export ATLAS_TOKEN=""
+export VAGRANTCLOUD_TOKEN=""
