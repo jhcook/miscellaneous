@@ -1,16 +1,24 @@
-#!/bin/bash
+#!/usr/bin/env bash
+#
+# Restart bluetooth and reconnect devices.
+#
+# Requires: blueutil https://github.com/toy/blueutil
+#
+# Usage: `basename $0`
+
+blueutil >/dev/null 2>&1 || { echo "blueutil not found" ; exit 127 ; }
+
+echo "Preparing a list of connected devices..."
+connected=$(blueutil --recent | awk -F'[ ,]' '$4 ~ /^connected$/{print$2}')
 
 echo "Restarting bluetooth service..."
 blueutil -p 0 && sleep 1 && blueutil -p 1
 
-echo "Waiting bluetooth service to be restored..."
+echo "Waiting for bluetooth service..."
 until blueutil -p | grep "1" >/dev/null; do sleep 1; done
 
-echo "Searching for devices not connected..."
-devices=($(blueutil --paired | grep "not connected" | awk -F '[ ,]' '{print $2}'))
-echo "Found ${#devices[@]} recently paired devices not connected"
-
-for device in ${devices[@]}; do
+echo "Reconnecting to each device..."
+for device in ${connected[@]}; do
     for retry in {1..5}; do	
     	echo "Trying to connect to ${device} ..."
         if blueutil --connect ${device}; then break; fi
