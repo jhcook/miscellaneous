@@ -1,4 +1,4 @@
-#!/usr/bin/python3.4 -Es
+#!/usr/bin/python3 -Es
 #
 # This file uses SHA256 to hash files recursively given a directory.
 # It skips files of type: directory, link, character/block device, & named
