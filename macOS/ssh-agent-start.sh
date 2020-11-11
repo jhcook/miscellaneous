@@ -4,12 +4,15 @@
 # all ssh-agent processes and find one we can use. If that fails, start a
 # new one and pass the variables to the caller.
 #
-# Tested on: macOS 10.15
+# Tested on: macOS 10.15, 11.0
 # Usage: eval `basename $0`
 # Author: Justin Cook <jhcook@secnix.com>
 
 set -o nounset
 set -o pipefail
+
+SSH_AGENT_LOCKFILE="/var/tmp/`basename $0 | cut -f 1 -d '.'`.lock"
+trap "rm ${SSH_AGENT_LOCKFILE}" EXIT
 
 # Convenient function that takes two parameters.
 # $1 a pid it checks to see if running
@@ -31,6 +34,22 @@ check_pid_and_socket() {
   fi
   return 1
 }
+
+# Check to see if a lock file exists. Backoff retry if so.
+
+while [ -f "${SSH_AGENT_LOCKFILE}" ]
+do
+  # Check the lock file age. If more than 60 seconds we have a problem.
+  # Exit loud.
+  if test `find "${SSH_AGENT_LOCKFILE}" -mmin +1`
+  then
+    echo "Stale `basename $0` lockfile: ${SSH_AGENT_LOCKFILE}"
+    exit
+  fi
+sleep 1
+done
+
+touch ${SSH_AGENT_LOCKFILE}
 
 # If the env has an operating ssh-agent, bail.
 if [ ! -z ${SSH_AGENT_PID+x} ] && [ ! -z ${SSH_AUTH_SOCK+x} ]
@@ -58,7 +77,7 @@ do # Get the pid and find the associated agent's socket
     then
       printf "SSH_AUTH_SOCK=${ssh_auth_sock}; export SSH_AUTH_SOCK;\n"
       printf "SSH_AGENT_PID=${ssh_agent_pid}; export SSH_AGENT_PID;\n"
-      printf "echo Agent pid ${ssh_agent_pid}\n"
+#      printf "echo Agent pid ${ssh_agent_pid}\n"
       exit
     fi
   fi
