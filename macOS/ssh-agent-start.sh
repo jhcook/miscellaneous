@@ -12,7 +12,6 @@ set -o nounset
 set -o pipefail
 
 SSH_AGENT_LOCKFILE="/var/tmp/`basename $0 | cut -f 1 -d '.'`.lock"
-trap "rm ${SSH_AGENT_LOCKFILE}" EXIT
 
 # Convenient function that takes two parameters.
 # $1 a pid it checks to see if running
@@ -50,6 +49,7 @@ sleep 1
 done
 
 touch ${SSH_AGENT_LOCKFILE}
+trap "rm -f ${SSH_AGENT_LOCKFILE}" EXIT
 
 # If the env has an operating ssh-agent, bail.
 if [ ! -z ${SSH_AGENT_PID+x} ] && [ ! -z ${SSH_AUTH_SOCK+x} ]
