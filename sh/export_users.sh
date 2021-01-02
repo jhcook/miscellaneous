@@ -14,7 +14,7 @@ set -o xtrace
 
 idm_usersfile="idm-users-and-groups-`date +%F`.txt"
 
-lockfile="/tmp/`basename $0`.lock"
+lockfile="/tmp/`basename $0 | cut -f 1 -d '.'`.lock"
 
 get_user_info() {
   user_info="`ipa user-show ${user}`"
