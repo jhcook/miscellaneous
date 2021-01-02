@@ -34,22 +34,22 @@ check_pid_and_socket() {
   return 1
 }
 
-# Check to see if a lock file exists. Backoff retry if so.
+# Check to see if a lock file exists. Backoff and retry for 60 seconds
+# if so. Otherwise, bail loudly.
 
-while [ -f "${SSH_AGENT_LOCKFILE}" ]
+while :
 do
-  # Check the lock file age. If more than 60 seconds we have a problem.
-  # Exit loud.
-  if test `find "${SSH_AGENT_LOCKFILE}" -mmin +1`
+  if test `find "${SSH_AGENT_LOCKFILE}" -mmin +1 2>/dev/null`
   then
-    echo "Stale `basename $0` lockfile: ${SSH_AGENT_LOCKFILE}"
+    >&2 echo "Stale `basename $0` lockfile: ${SSH_AGENT_LOCKFILE}" 
     exit
+  else
+    mkdir -p "${SSH_AGENT_LOCKFILE}" 2>/dev/null && break || /bin/true
+    sleep .25
   fi
-sleep 1
 done
 
-touch ${SSH_AGENT_LOCKFILE}
-trap "rm -f ${SSH_AGENT_LOCKFILE}" EXIT
+trap "rm -fr ${SSH_AGENT_LOCKFILE}" EXIT
 
 # If the env has an operating ssh-agent, bail.
 if [ ! -z ${SSH_AGENT_PID+x} ] && [ ! -z ${SSH_AUTH_SOCK+x} ]
@@ -65,7 +65,7 @@ fi
 # If a pair is found that checks out, print the information to be consumed.
 for pid in $(ps aux | \
              awk "\$11 ~ /ssh-agent/ && \$1 ~ /`id -un`/ {print\$2}" | \
-             sort -r)
+             sort -n)
 do # Get the pid and find the associated agent's socket
   ssh_agent_pid=${pid}
   ssh_auth_sock=`find ${TMPDIR} -user $(id -un) -type s \
