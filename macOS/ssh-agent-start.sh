@@ -10,6 +10,7 @@
 
 set -o nounset
 set -o pipefail
+set -x
 
 SSH_AGENT_LOCKFILE="/var/tmp/`basename $0 | cut -f 1 -d '.'`.lock"
 
@@ -68,7 +69,7 @@ for pid in $(ps aux | \
              sort -n)
 do # Get the pid and find the associated agent's socket
   ssh_agent_pid=${pid}
-  ssh_auth_sock=`find ${TMPDIR} -user $(id -un) -type s \
+  ssh_auth_sock=`find ${TMPDIR}/ssh-* -user $(id -un) -type s \
                  -name agent.$((${pid}-1)) 2>/dev/null`
   # Check to see if a file was actually found.
   if [ ! -z "${ssh_auth_sock}" ]
