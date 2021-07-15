@@ -1,0 +1,11 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cpx-server
+spec:
+  defaultBackend:
+    service:
+      name: cpx-server
+      port:
+        number: 8080
