@@ -1,4 +1,14 @@
 #!/usr/bin/env python3
+#
+# This utility fetches JSON objects from an API server. These objects
+# represent servers, processes, and process state. The information is parsed
+# and displayed for human interpretation. 
+#
+# Usage: cpx.py [services | status ] <endpoint>
+#        $ cpx.py status http://my.example.com/
+#        optional arguments: -h, --help  show a help message and exit
+#
+# Author: Justin Cook <jhcook@secnix.com>
 
 import os
 import sys
