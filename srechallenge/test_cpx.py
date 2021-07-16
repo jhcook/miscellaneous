@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+# Run unit tests for cpx.py
+#
+# Usage: $ python3 -m unittest discover -s .
+#
+# Author: Justin Cook <jhcook@secnix.com>
+
 import unittest
 import cpx
 import subprocess
