@@ -14,6 +14,13 @@ from time import sleep
 
 class TestCpx(unittest.TestCase):
     
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.subproc = subprocess.Popen(['python3', 'src/cpx_server.py', 
+                                        '8080'])
+        sleep(1)
+        return super().setUpClass()
+
     def setUp(self) -> None:
         """Setup the app for each test.
         
@@ -26,12 +33,6 @@ class TestCpx(unittest.TestCase):
                               servers=loads(load(srv)),
                               service=loads(load(svc)))
         return super().setUp()
-    
-    @classmethod
-    def setUpClass(cls):
-        """Only one API server is necessary for all tests"""
-        cls.subproc = subprocess.Popen(['python3', 'src/cpx_server.py', 
-                                        '8080'])
 
     def test_get_servers(self):
         """Checks to see if servers is an instance of a list
@@ -58,10 +59,14 @@ class TestCpx(unittest.TestCase):
         cpx.main(self.app, "services", noloop=True)
     
     def tearDown(self) -> None:
-        """Terminate the API server and wait for exit"""
-        self.subproc.kill()
-        self.subproc.wait()
         return super().tearDown()
-
+    
+    @classmethod
+    def tearDownClass(cls) -> None:
+        """Terminate the API server and wait for exit"""
+        cls.subproc.kill()
+        cls.subproc.wait()        
+        return super().tearDownClass()
+    
 if __name__ == "__main__":
     unittest.main()
