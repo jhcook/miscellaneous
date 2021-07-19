@@ -7,18 +7,27 @@
 
 import unittest
 import cpx
-import subprocess
+from subprocess import Popen
+from socket import create_connection
 from pickle import load
 from json import loads
-from time import sleep
+from time import perf_counter, sleep
 
 class TestCpx(unittest.TestCase):
     
     @classmethod
     def setUpClass(cls) -> None:
-        cls.subproc = subprocess.Popen(['python3', 'src/cpx_server.py', 
-                                        '8080'])
-        sleep(1)
+        cls.subproc = Popen(['python3', 'src/cpx_server.py', '8080'])
+        start_time = perf_counter()
+        timeout = 1
+        while True:
+            try:
+                with create_connection(('localhost', 8080), timeout):
+                    break
+            except OSError as err:
+                if time.perf_counter() - start_time >= timeout:
+                    raise TimeoutError("setUpClass: timed out after {}".format(timeout))
+                sleep(0.01)
         return super().setUpClass()
 
     def setUp(self) -> None:
