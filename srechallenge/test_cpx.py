@@ -25,7 +25,7 @@ class TestCpx(unittest.TestCase):
                 with create_connection(('localhost', 8080), timeout):
                     break
             except OSError as err:
-                if time.perf_counter() - start_time >= timeout:
+                if perf_counter() - start_time >= timeout:
                     raise TimeoutError("setUpClass: timed out after {}".format(timeout))
                 sleep(0.01)
         return super().setUpClass()
