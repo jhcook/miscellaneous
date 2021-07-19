@@ -52,12 +52,14 @@ class TestCpx(unittest.TestCase):
         self.assertIsInstance(self.app.servers, list)
 
     def test_get_status(self):
-        """Checks to see if service is an instance of a dict
+        """Checks to see if service is a dict with specific keys
         
         Since we seed the variable with data, this proves the
         data is loaded successfully.
         """
         self.assertIsInstance(self.app.service, dict)
+        self.assertIn('cpu', self.app.service)
+        self.assertIn('memory', self.app.service)
 
     def test_main_status(self):
         """Checks to see if status in main successfully executes"""
