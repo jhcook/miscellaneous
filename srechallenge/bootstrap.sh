@@ -10,6 +10,12 @@
 set -o nounset
 set -o errexit
 
+# Check dependencies in PATH
+for cmd in docker kubectl python3 minikube
+  do which ${cmd} 2>&1 >/dev/null || { 
+    echo "command not found in PATH: ${cmd}" ; exit 1 ; }
+done
+
 # Run unit tests
 python3 -m unittest discover -s .
 
