@@ -543,6 +543,12 @@ OK
 
 Execute `bootstrap.sh`. PRs welcome.
 
+Write code.
+
+```
+$ minikube delete
+```
+
 ## Example Client Execution
 
 The client utility features can be seen with `-h` command-line arguments.
