@@ -29,6 +29,8 @@ EXAMPLE:
 __EOF__
 }
 
+trap usage ERR
+
 # A convenience function to resolve the Time Capsule hostname using DNS.
 # This is a last resort as DNS may not be configured appropriately for dynamic
 # address allocation. Nevertheless, hail Mary. Use Python as the more 
