@@ -85,25 +85,6 @@ fi
 
 # $ dns-sd -Z _smb._tcp
 # Browsing for _smb._tcp
-# DATE: ---Thu 12 Aug 2021---
-# 15:14:25.561  ...STARTING...
-
-# ; To direct clients to browse a different domain, substitute that domain in
-# place of '@'
-# lb._dns-sd._udp                                 PTR     @
-
-# ; In the list of services below, the SRV records will typically reference
-# dot-local Multicast DNS names.
-# ; When transferring this zone file data to your unicast DNS server, you'll 
-# need to replace those dot-local
-# ; names with the correct fully-qualified (unicast) domain name of the target
-# host offering the service.
-
-# _smb._tcp                                       PTR     TimeCapsule._smb._tcp
-# TimeCapsule._smb._tcp                   SRV     0 0 445 TimeCapsule.local.
-# ; Replace with unicast FQDN of target host
-# TimeCapsule._smb._tcp                   TXT     “”
-# ...
 
 # Create the relevant proxy advertisement on the host attached to VPN.
 
