@@ -5,18 +5,19 @@
 # or gather the information and create the proxy advertisement.
 #
 # https://superuser.com/questions/949140/repeating-mdns-bonjour-requests-from-eth0-through-a-tunnel-tun0
+# http://www.dns-sd.org/servicetypes.html
 #
 # Author: Justin Cook <jhcook@secnix.com>
 
 set -o nounset
 set -o errexit
 
-function usage()
+usage()
 {
 cat << __EOF__
-usage: `basename $0` -t <Time Capsule Name> -i <Time Capsule IP>
+usage: $(basename "$0") -t <Time Capsule Name> -i <Time Capsule IP>
 
-`basename $0` is used to create a proxy advertisement for SMB to a remote host
+$(basename "$0") is used to create a proxy advertisement for SMB to a remote host
 
 OPTIONS:
    -h      Show this message
@@ -25,7 +26,7 @@ OPTIONS:
    -v      Verbose
 
 EXAMPLE:
-`basename $0` -vt <hostname.tld> -i [ip address]
+$(basename "$0") -vt <hostname.tld> -i [ip address]
 __EOF__
 }
 
@@ -35,12 +36,15 @@ trap usage ERR
 # This is a last resort as DNS may not be configured appropriately for dynamic
 # address allocation. Nevertheless, hail Mary. Use Python as the more 
 # convenient programmatic solution available on most platforms.
-function gethostbyname()
+gethostbyname()
 {
   python -c "import socket; \
-             print(socket.gethostbyname(\"\
-${TIMECAPSULE_NAME}.${TIMECAPSULE_TLD}\"))"
+             print(socket.gethostbyname(\
+\"${TIMECAPSULE_NAME}.${TIMECAPSULE_TLD}\"))"
 }
+
+#TIMECAPSULE_NAME=""
+#TIMECAPSULE_IP=""
 
 while getopts "hi:t:v" OPTION
 do
@@ -52,7 +56,7 @@ do
     i)
       TIMECAPSULE_IP="${OPTARG}"
       ;;
-    t)
+    t) # read -a is not POSIX. I'm terribly sorry.
       IFS='.' read -r -a TIMECAPSULE_INFO <<< "${OPTARG}"
       TIMECAPSULE_NAME="${TIMECAPSULE_INFO[0]}"
       TIMECAPSULE_TLD="${TIMECAPSULE_INFO[1]:=local}"
@@ -66,6 +70,12 @@ do
       ;;
   esac
 done
+
+if [ -z "${TIMECAPSULE_NAME}" ] || [ -z "${TIMECAPSULE_IP:=$(gethostbyname)}" ]
+then
+  usage
+  exit 1
+fi
 
 # $ dns-sd -Z _smb._tcp
 # Browsing for _smb._tcp
@@ -84,14 +94,16 @@ done
 # host offering the service.
 
 # _smb._tcp                                       PTR     TimeCapsule._smb._tcp
-# TimeCapsule2._smb._tcp                   SRV     0 0 445 TimeCapsule.local.
+# TimeCapsule._smb._tcp                   SRV     0 0 445 TimeCapsule.local.
 # ; Replace with unicast FQDN of target host
-# TimeCapsule2._smb._tcp                   TXT     “”
+# TimeCapsule._smb._tcp                   TXT     “”
 # ...
 
 # Create the relevant proxy advertisement on the host attached to VPN.
 
-dns-sd -P "${TIMECAPSULE_NAME}" '_smb._tcp' "${TIMECAPSULE_TLD}." 445 \
-  ${TIMECAPSULE_NAME}.${TIMECAPSULE_TLD} ${TIMECAPSULE_IP:-`gethostbyname`}
+dns-sd -P "${TIMECAPSULE_NAME}" '_smb._tcp' "${TIMECAPSULE_TLD}." \
+  445 \
+  "${TIMECAPSULE_NAME}.${TIMECAPSULE_TLD}" \
+  "${TIMECAPSULE_IP}"
 
 # /usr/bin/tmutil startbackup
