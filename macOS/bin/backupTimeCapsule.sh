@@ -39,7 +39,6 @@ trap usage ERR
 gethostbyname()
 {
   python3 - <<__EOF__
-from __future__ import print_function
 from socket import (gethostbyname, gaierror)
 from sys import stderr
 try:
