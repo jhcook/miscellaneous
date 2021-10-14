@@ -91,6 +91,6 @@ fi
 dns-sd -P "${TIMECAPSULE_NAME}" '_smb._tcp' "${TIMECAPSULE_TLD}." \
   445 \
   "${TIMECAPSULE_NAME}.${TIMECAPSULE_TLD}" \
-  "${TIMECAPSULE_IP}"
+  "${TIMECAPSULE_IP}" || exit 1
 
 # /usr/bin/tmutil startbackup
