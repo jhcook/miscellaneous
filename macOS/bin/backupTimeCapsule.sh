@@ -38,9 +38,15 @@ trap usage ERR
 # convenient programmatic solution available on most platforms.
 gethostbyname()
 {
-  python -c "import socket; \
-             print(socket.gethostbyname(\
-\"${TIMECAPSULE_NAME}.${TIMECAPSULE_TLD}\"))"
+  python3 - <<__EOF__
+from __future__ import print_function
+from socket import (gethostbyname, gaierror)
+from sys import stderr
+try:
+  print(gethostbyname("${TIMECAPSULE_NAME}.${TIMECAPSULE_TLD}"))
+except gaierror as err:
+  print(err, file=stderr)
+__EOF__
 }
 
 # Necessary values
