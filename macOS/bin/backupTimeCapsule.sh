@@ -43,8 +43,9 @@ gethostbyname()
 \"${TIMECAPSULE_NAME}.${TIMECAPSULE_TLD}\"))"
 }
 
-#TIMECAPSULE_NAME=""
-#TIMECAPSULE_IP=""
+# Necessary values
+TIMECAPSULE_NAME=""
+TIMECAPSULE_IP=""
 
 while getopts "hi:t:v" OPTION
 do
