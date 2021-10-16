@@ -3,7 +3,7 @@
 #
 # Requires: Python3 kubectl Docker Minikube
 # 
-# Tested on: macOS Big Sur 11.4
+# Tested on: macOS Big Sur 11
 #
 # Author: Justin Cook <jhcook@secnix.com>
 
@@ -25,14 +25,21 @@ minikube start --addons registry,ingress --insecure-registry "localhost"
 eval $(minikube docker-env)
 echo "Building cpx_server Docker image..."
 cd src
+# https://stackoverflow.com/questions/37573476/
+# docker-complaining-about-all-proxy-environment-variable-with-proxy-unknown-sch
+unset ALL_PROXY
 docker build --tag localhost:5000/cpx_server .
 docker push localhost:5000/cpx_server
 cd $OLDPWD
 
 # Deploy to Kubernetes
+if [ ! -d "tmp" ]
+then
+  mkdir tmp
+fi
 sed -e "s/__DRHOST__/localhost:5000/g" src/cpx-server-deployment.yaml > \
-  cpx-server.yaml
-cat src/cpx-server-service.yaml >> cpx-server.yaml
-cat src/cpx-server-ingress.yaml >> cpx-server.yaml
+  tmp/cpx-server.yaml
+cat src/cpx-server-service.yaml >> tmp/cpx-server.yaml
+cat src/cpx-server-ingress.yaml >> tmp/cpx-server.yaml
 echo "Deploying cps-server components"
-kubectl apply -f cpx-server.yaml
+kubectl apply -f tmp/cpx-server.yaml
