@@ -19,9 +19,11 @@ done
 # Run unit tests
 python3 -m unittest discover -s .
 
+# Create Minikube VM
 echo "Starting Minikube..."
 minikube start --addons registry,ingress --insecure-registry "localhost"
 
+# Build Docker image and push to local registry
 eval $(minikube docker-env)
 echo "Building cpx_server Docker image..."
 cd src
