@@ -1,3 +1,12 @@
+# Ignore Python cache directories
 __pycache__
+
+# Ignore compiled Python files
 *.pyc
-*/tmp/*
+
+# Ignore tmp directories
+tmp
+
+# Ignore pickled Python files
+# $ git update-index --skip-worktree srechallenge/fixtures/*.p
+*.p
