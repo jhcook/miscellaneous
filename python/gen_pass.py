@@ -7,10 +7,10 @@
 
 from random import seed, choices, randrange
 from string import ascii_letters, digits
-from datetime import datetime
+from secrets import randbits
 
 # Seed random
-seed(datetime.now())
+seed(randbits(512))
 
 # Create an alphanumeric string subdivided by a delimiter
 freq = randrange(3,6)
