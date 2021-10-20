@@ -27,6 +27,9 @@ https://docs.docker.com/engine/install/centos/
 I have encapsulated this in Vagrant using the Vagrantfile below:
 
 ```
+# Your SSH public key
+ssh_pub_key = "ssh-rsa ..."
+
 $script = <<-SCRIPT
 # https://docs.docker.com/engine/install/centos/
 yum install -y yum-utils
@@ -37,12 +40,14 @@ systemctl start docker
 systemctl enable docker
 # https://github.com/docker/docker.github.io/issues/9262
 usermod -aG docker vagrant
+cat - << __EOF__ >> ~vagrant/.ssh/authorized_keys
+#{ssh_pub_key}
+__EOF__
 SCRIPT
 
 Vagrant.configure("2") do |config|
   config.vm.box = "jhcook/centos8"
   config.vm.provision "shell", inline: $script
-  config.vm.network "forwarded_port", guest: 2375, host: 2375
   config.vm.post_up_message = "export DOCKER_HOST=ssh://vagrant@localhost:2222"
 end
 ```
