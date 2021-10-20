@@ -52,7 +52,8 @@ Vagrant.configure("2") do |config|
 end
 ```
 
-After a `vagrant up` you will need to copy your public key to 
+Copy your public ssh key to `ssh_pub_key` in the Vagrantfile above, and after a
+`vagrant up` you will not need to copy your public key to 
 `~vagrant/.ssh/authorized_keys` in order for `docker ...` to connect.
 
 ## Deploy a registry
