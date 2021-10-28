@@ -31,11 +31,20 @@ I have encapsulated this in Vagrant using the Vagrantfile below:
 ssh_pub_key = "ssh-rsa ..."
 
 $script = <<-SCRIPT
+# Disable firewall
+systemctl disable firewalld
+systemctl stop firewalld
 # https://docs.docker.com/engine/install/centos/
 yum install -y yum-utils
 yum-config-manager --add-repo \
     https://download.docker.com/linux/centos/docker-ce.repo
 yum install -y docker-ce docker-ce-cli containerd.io
+# Enable tcp:2375
+sed -i 's|ExecStart=.*|ExecStart=/usr/bin/dockerd --containerd=/run/containerd/containerd.sock|g' /usr/lib/systemd/system/docker.service
+systemctl daemon-reload
+test -d /etc/docker || mkdir /etc/docker
+echo '{"hosts": ["tcp://0.0.0.0:2375", "unix:///var/run/docker.sock"]}' > \
+     /etc/docker/daemon.json
 systemctl start docker
 systemctl enable docker
 # https://github.com/docker/docker.github.io/issues/9262
@@ -47,8 +56,13 @@ SCRIPT
 
 Vagrant.configure("2") do |config|
   config.vm.box = "jhcook/centos8"
+  config.vm.provider "virtualbox" do |v|
+    v.memory = 16384
+    v.cpus = 4
+  end
+  config.vm.network "forwarded_port", guest: 2375, host: 2375
   config.vm.provision "shell", inline: $script
-  config.vm.post_up_message = "export DOCKER_HOST=ssh://vagrant@localhost:2222"
+  config.vm.post_up_message = "export DOCKER_HOST=tcp://localhost:2375"
 end
 ```
 
