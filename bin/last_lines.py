@@ -43,24 +43,25 @@ def last_n_lines(file_name: str, num_lines: int=10):
     return lines.split('\n')[-num_lines:]
         
 if __name__ == "__main__":
-    file_name = argv[0].rpartition('/')[2]
+    usage = "{} -n <number_of_lines> <file_name>".format(argv[0].rpartition('/')[2])
     number_lines = 10
     try:
         opts, args = getopt(argv[1:], "hn:")
     except GetoptError:
-        print("{} -n <number_of_lines> <file_name>".format(file_name))
+        print(usage)
         exit (2)
     for opt, arg in opts:
         if opt == '-h':
-            print("{} -n <number_of_lines> <file_name>".format(file_name))
+            print(usage)
             exit(0)
         elif opt == '-n':
-            number_lines = int(arg)
+            try:
+                number_lines = int(arg)
+            except ValueError as err:
+                print(err)
+                exit(4)
     try:
         for line in last_n_lines(args[0], number_lines):
             print(line)
-    except NameError as err:
-        print(err)
-        print("last_lines.py <file_name>")
     except FileNotFoundError as err:
         print(err)
