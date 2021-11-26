@@ -9,9 +9,10 @@
 #
 # Author: Justin Cook <jhcook@secnix.com>
 
+from getopt import GetoptError, getopt
+from sys import argv, exit
 from os import SEEK_END, SEEK_SET
 from re import finditer
-from posixpath import expanduser
 
 # The amount of data to read in one go, i.e., each chunk
 block = 256
@@ -38,8 +39,27 @@ def last_n_lines(file_name, num_lines=10):
                 offset += block
     except IOError as err:
         raise err
-    return lines.split('\n')[-10:]
+    return lines.split('\n')[-num_lines:]
         
 if __name__ == "__main__":
-    lines = last_n_lines(expanduser('~/stuff.txt'))
-    print("{}: {}".format(len(lines), lines))
+    file_name = argv[0].rpartition('/')[2]
+    number_lines = 10
+    try:
+        opts, args = getopt(argv[1:], "hn:")
+    except GetoptError:
+        print("{} -n <number_of_lines> <file_name>".format(file_name))
+        exit (2)
+    for opt, arg in opts:
+        if opt == '-h':
+            print("{} -n <number_of_lines> <file_name>".format(file_name))
+            exit(0)
+        elif opt == '-n':
+            number_lines = int(arg)
+    try:
+        for line in last_n_lines(args[0], number_lines):
+            print(line)
+    except NameError as err:
+        print(err)
+        print("last_lines.py <file_name>")
+    except FileNotFoundError as err:
+        print(err)
