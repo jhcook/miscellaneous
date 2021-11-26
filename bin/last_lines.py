@@ -6,6 +6,7 @@
 #
 # Notes: 
 # - https://stackoverflow.com/questions/21533391/seeking-from-end-of-file-throwing-unsupported-exception
+# - https://www.tutorialspoint.com/python3/python_command_line_arguments.htm
 #
 # Author: Justin Cook <jhcook@secnix.com>
 
@@ -17,7 +18,7 @@ from re import finditer
 # The amount of data to read in one go, i.e., each chunk
 block = 256
 
-def last_n_lines(file_name, num_lines=10):
+def last_n_lines(file_name: str, num_lines: int=10):
     ''' Return num_lines lines from file_name
 
         Author: Justin Cook <jhcook@secnix.com>
