@@ -4,6 +4,9 @@
 # blocks and carry on reading backwards incrementing until the specific number
 # of lines are found.
 #
+# Notes: 
+# - https://stackoverflow.com/questions/21533391/seeking-from-end-of-file-throwing-unsupported-exception
+#
 # Author: Justin Cook <jhcook@secnix.com>
 
 from os import SEEK_END, SEEK_SET
@@ -24,9 +27,12 @@ def last_n_lines(file_name, num_lines=10):
     try:
         with open(file_name, 'r') as f:    
             while num_found < num_lines:
-                # https://stackoverflow.com/questions/21533391/seeking-from-end-of-file-throwing-unsupported-exception
-                f.seek(0, SEEK_END)
-                f.seek(f.tell() - offset, SEEK_SET) 
+                try:
+                    f.seek(0, SEEK_END)
+                    f.seek(f.tell() - offset, SEEK_SET) 
+                except ValueError:
+                    offset = offset / 2
+                    continue
                 lines = f.read(block) + lines
                 num_found = len([s.start() for s in finditer('\n', lines)])
                 offset += block
@@ -35,5 +41,5 @@ def last_n_lines(file_name, num_lines=10):
     return lines.split('\n')[-10:]
         
 if __name__ == "__main__":
-    lines = last_n_lines(expanduser('~/aws_resource_types.txt'))
+    lines = last_n_lines(expanduser('~/stuff.txt'))
     print("{}: {}".format(len(lines), lines))
