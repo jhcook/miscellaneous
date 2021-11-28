@@ -33,8 +33,8 @@ def last_n_lines(file_name: str, num_lines: int=10):
                     f.seek(0, SEEK_END)
                     f.seek(f.tell() - offset, SEEK_SET) 
                 except ValueError:
-                    offset = offset / 2
-                    continue
+                    f.seek(0, 0)
+                    num_lines = 0
                 lines = f.read(block) + lines
                 num_found = len([s.start() for s in finditer('\n', lines)])
                 offset += block
