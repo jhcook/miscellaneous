@@ -22,6 +22,7 @@ block = 256
 
 @contextlib.contextmanager
 def smart_open(filename=None):
+    """A convenient function to handle stdin since it's unseekable."""
     if filename and filename != '-':
         fh = open(filename, 'r')
     else:
@@ -33,10 +34,10 @@ def smart_open(filename=None):
             fh.close()
 
 def last_n_lines(file_name: str, num_lines: int=10):
-    ''' Return num_lines lines from file_name
+    """Return num_lines lines from file_name
 
-        Author: Justin Cook <jhcook@secnix.com>
-    '''
+    Author: Justin Cook <jhcook@secnix.com>
+    """
     num_found = 0
     lines = ''
     offset = block
