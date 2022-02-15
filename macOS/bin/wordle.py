@@ -10,18 +10,21 @@
 from re import (compile, finditer, search, IGNORECASE)
 from random import choice
 
+word_length = 5
+
 class Wordle():
     
     dictionary = "/usr/share/dict/words"
     guess_lst = ['1st', '2nd', '3rd', '4th', '5th']
     num_guess = 0
-    wordle = [None] * 6
+    wordle = [None] * word_length
     game_word = temp_word = user_word = potential_words = None
 
     def __init__(self):
         # Get a word six characters in length
         with open(self.dictionary, 'r') as d:
-            the_words = [line.strip() for line in d.readlines() if len(line) == 7]
+            the_words = [line.strip() for line in d.readlines() 
+                         if len(line) == word_length+1]
             self.game_word = choice(the_words)
         self.temp_word = ["."] * len(self.game_word)
         self.potential_words = []
