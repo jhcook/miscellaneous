@@ -15,9 +15,9 @@ word_length = 5
 class Wordle():
     
     dictionary = "/usr/share/dict/words"
-    guess_lst = ['1st', '2nd', '3rd', '4th', '5th']
+    guess_lst = ['1st', '2nd', '3rd', '4th', '5th', '6th']
     num_guess = 0
-    wordle = [None] * word_length
+    wordle = [""] * word_length
     game_word = temp_word = user_word = potential_words = None
 
     def __init__(self):
@@ -31,8 +31,13 @@ class Wordle():
 
     def __user_guess(self):
         """Prompt the user for input and increment num_guess"""
-        self.user_word = input("Enter {} word: ".format(self.guess_lst[self.num_guess]))
-        self.num_guess += 1
+        while True:
+            self.user_word = input("Enter {} word: ".format(self.guess_lst[self.num_guess]))
+            if len(self.user_word) != word_length:
+                print("Word must be {} characters.".format(word_length))
+                continue
+            self.num_guess += 1
+            break
 
     def __find_matches(self):
         """`matches` is a dict which is populated with each char and a list of
@@ -76,7 +81,7 @@ class Wordle():
                 self.wordle[i] = "⬛️"
 
     def play(self):
-        while self.num_guess < 5:
+        while self.num_guess < len(self.guess_lst):
             # Prompt for user try
             self.__user_guess()
             # Check user's input
