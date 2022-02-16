@@ -7,7 +7,7 @@
 #
 # Author: Justin Cook
 
-from re import (compile, finditer, search, IGNORECASE)
+from re import (compile, search, IGNORECASE)
 from random import choice
 
 word_length = 5
@@ -16,9 +16,7 @@ class Wordle():
     
     dictionary = "/usr/share/dict/words"
     guess_lst = ['1st', '2nd', '3rd', '4th', '5th', '6th']
-    num_guess = 0
-    wordle = [""] * word_length
-    game_word = temp_word = user_word = potential_words = None
+    wordle = game_word = srch_str = user_word = potential_words = unknown_chars = None
 
     def __init__(self):
         # Get a word six characters in length
@@ -26,8 +24,10 @@ class Wordle():
             the_words = [line.strip() for line in d.readlines() 
                          if len(line) == word_length+1]
             self.game_word = choice(the_words)
-        self.temp_word = ["."] * len(self.game_word)
+        self.srch_str = ["."] * word_length
         self.potential_words = []
+        self.wordle = [None] * word_length
+        self.num_guess = 0
 
     def __user_guess(self):
         """Prompt the user for input and increment num_guess"""
@@ -38,47 +38,58 @@ class Wordle():
                 continue
             self.num_guess += 1
             break
-
-    def __find_matches(self):
-        """`matches` is a dict which is populated with each char and a list of
-        indexes from guesses that match game_word.
-        """
-        matches = {}
-        for s in self.user_word:
-            search = finditer(rf"({s})", self.game_word, flags=IGNORECASE)
-            [matches.setdefault(s, []).append(m.span()[0]) for m in search]
-        # Update self.temp_word with these findings
-        for c in matches:
-            for i in matches[c]:
-                self.temp_word[i] = c
     
     def __search_dictionary(self):
-        """Consult known matched characters `self.temp_word` to narrow down
+        """Consult known matched characters `self.srch_str` to narrow down
         word candidates.
         """
         self.potential_words = []
-        temp_word = ''.join(self.temp_word)
-        regex = compile(rf"^{temp_word}$", flags=IGNORECASE)
+        temp_str = ''.join(self.srch_str)
+        regex = compile(rf"^{temp_str}$", flags=IGNORECASE)
         with open(self.dictionary, 'r') as d:
+            tl = self.unknown_chars.values()
+            required_letters = [item for tl in tl for item in tl]
             for line in d.readlines():
                 word = regex.search(line)
-                if word: self.potential_words.append(word.group())
+                if word:
+                    the_word = word.group()
+                    for val in [c in the_word for c in required_letters]:
+                        if val: continue
+                    self.potential_words.append(the_word)
 
     def __check_guess(self):
         if self.user_word == self.game_word.lower():
             print("Good job!")
             return True
-        self.__find_matches()
+        self.__gen_wordle()
         self.__search_dictionary()
     
     def __gen_wordle(self):
+        """Enumerate through `self.user_word` anc compare each character with
+        `self.game_word`. Update self.wordle with the appropriate character and
+        recreate the search string based on the results."""
+        self.unknown_chars = {}
+        blacked_out = []
+        self.srch_str = ["."] * len(self.game_word)
         for i, v in enumerate(self.user_word):
-            if self.game_word[i] == v:
+            if self.game_word[i].lower() == v:
                 self.wordle[i] = "🟩"
-            elif search(rf"{v}", self.game_word):
+                self.srch_str[i] = v
+            elif search(rf"{v}", self.game_word, flags=IGNORECASE):
                 self.wordle[i] = "🟨"
+                self.unknown_chars[i] = v
             else:
                 self.wordle[i] = "⬛️"
+                blacked_out.append(v)
+        
+        for i, v in enumerate(self.srch_str):
+            if v != '.': continue
+            chars = []
+            for k in self.unknown_chars:
+                if i == k:
+                    chars.extend(self.unknown_chars[k])
+            if chars or blacked_out:
+                self.srch_str[i] = "(?:(?![{}])[a-z]){{1}}".format(''.join(chars+blacked_out))
 
     def play(self):
         while self.num_guess < len(self.guess_lst):
@@ -88,7 +99,6 @@ class Wordle():
             if self.__check_guess():
                 return
             # Print Wordle
-            self.__gen_wordle()
             print("".join(self.wordle))
             # Print suggested words
             print("Suggestions: {}".format(", ".join(self.potential_words)))
@@ -99,4 +109,7 @@ if __name__ == "__main__":
     # Create game
     wordle = Wordle()
     # Play game
-    wordle.play()
+    try:
+        wordle.play()
+    except KeyboardInterrupt:
+        print()
