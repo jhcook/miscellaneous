@@ -7,7 +7,7 @@
 #
 # Author: Justin Cook
 
-from re import (compile, search, IGNORECASE)
+from re import (compile, search)
 from random import choice
 
 word_length = 5
@@ -16,18 +16,21 @@ class Wordle():
     
     dictionary = "/usr/share/dict/words"
     guess_lst = ['1st', '2nd', '3rd', '4th', '5th', '6th']
-    wordle = game_word = srch_str = user_word = potential_words = unknown_chars = None
+    wordle = game_word = srch_str = user_word = potential_words = blacked_out = unknown_chars = None
 
     def __init__(self):
         # Get a word six characters in length
         with open(self.dictionary, 'r') as d:
+            searcher = compile(f"[a-z]{{{word_length}}}")
             the_words = [line.strip() for line in d.readlines() 
                          if len(line) == word_length+1]
-            self.game_word = choice(the_words)
-        self.srch_str = ["."] * word_length
+            self.game_word = choice(list(filter(searcher.match, the_words)))
+        self.srch_str = ["[a-z]"] * word_length
         self.potential_words = []
         self.wordle = [None] * word_length
         self.num_guess = 0
+        self.blacked_out = set()
+        self.unknown_chars = {i: set() for i in range(word_length)}
 
     def __user_guess(self):
         """Prompt the user for input and increment num_guess"""
@@ -45,18 +48,21 @@ class Wordle():
         """
         self.potential_words = []
         temp_str = ''.join(self.srch_str)
-        regex = compile(rf"^{temp_str}$", flags=IGNORECASE)
+        regex = compile(rf"^{temp_str}$")
         with open(self.dictionary, 'r') as d:
-            tl = self.unknown_chars.values()
+            tl = self.unknown_chars.values() 
             required_letters = [item for tl in tl for item in tl]
             for line in d.readlines():
                 word = regex.search(line)
                 if word:
                     commit = True
                     the_word = word.group()
-                    if required_letters:
+                    if required_letters: # This should be replaced with lookaheads
                         for res in [c in the_word for c in required_letters]:
                             if not res: commit = False
+                    if self.blacked_out: # This should be replaced with lookaheads
+                        for bo in [c in the_word for c in self.blacked_out]:
+                            if bo: commit = False
                     if commit:
                         self.potential_words.append(the_word)
 
@@ -71,28 +77,25 @@ class Wordle():
         """Enumerate through `self.user_word` anc compare each character with
         `self.game_word`. Update self.wordle with the appropriate character and
         recreate the search string based on the results."""
-        self.unknown_chars = {}
-        blacked_out = []
-        self.srch_str = ["."] * len(self.game_word)
         for i, v in enumerate(self.user_word):
             if self.game_word[i].lower() == v:
                 self.wordle[i] = "🟩"
                 self.srch_str[i] = v
-            elif search(rf"{v}", self.game_word, flags=IGNORECASE):
+            elif search(rf"{v}", self.game_word):
                 self.wordle[i] = "🟨"
-                self.unknown_chars[i] = v
+                self.unknown_chars[i].add(v)
             else:
                 self.wordle[i] = "⬛️"
-                blacked_out.append(v)
+                self.blacked_out.add(v)
         
         for i, v in enumerate(self.srch_str):
-            if v != '.': continue
+            if v != '[a-z]': continue
             chars = []
             for k in self.unknown_chars:
                 if i == k:
                     chars.extend(self.unknown_chars[k])
-            if chars or blacked_out:
-                self.srch_str[i] = "(?:(?![{}])[a-z]){{1}}".format(''.join(chars+blacked_out))
+            if chars or self.blacked_out:
+                self.srch_str[i] = "(?:(?![{}])[a-z]){{1}}".format(''.join(chars+[c for c in self.blacked_out]))
 
     def play(self):
         while self.num_guess < len(self.guess_lst):
