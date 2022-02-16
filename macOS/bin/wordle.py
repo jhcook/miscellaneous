@@ -52,10 +52,13 @@ class Wordle():
             for line in d.readlines():
                 word = regex.search(line)
                 if word:
+                    commit = True
                     the_word = word.group()
-                    for val in [c in the_word for c in required_letters]:
-                        if val: continue
-                    self.potential_words.append(the_word)
+                    if required_letters:
+                        for res in [c in the_word for c in required_letters]:
+                            if not res: commit = False
+                    if commit:
+                        self.potential_words.append(the_word)
 
     def __check_guess(self):
         if self.user_word == self.game_word.lower():
