@@ -24,3 +24,52 @@ Suggestions: benjy, benny, fenny, jenny, nebby, neffy, nevoy, penny, peony, vein
 Enter 4th word: jenny
 Good job!
 ```
+
+## Wordle Solver
+
+This tool uses a dictionary of words with hints provided and suggests possible
+answers matching the hints. In the example below, the `!` character is used to
+mark the character as yellow, i.e., used in the word but not that position.
+Green characters are marked as just the letter for that position and duds are
+known black out or letters known not to be used in the word. The following is a
+real-world example with the answer being _caulk_ in Wordle 242. The dictionary
+can be found on [Github](https://raw.githubusercontent.com/dwyl/english-words/master/words.txt). 
+
+Below, the first word was _lunch_. The hints provided the following suggestions
+and the second word choice was _oculi_. The hints provided fewer suggestions
+with _caulk_ selected as the correct final choice.
+
+```
+ ./wsolver.py
+1st known letter: !l
+2nd known letter: !u
+3rd known letter:
+4th known letter: !c
+5th known letter:
+Known duds: nh
+Suggestions: cauld, cauli, caulk, cauls, claut, cleuk, clour, clout, clubs, clued, clues, cluff, clump, could, cruel, crull, oculi, picul, pocul, scaul, sculk, scull, sculp, scult, ticul, ulcer, ulcus, ulmic
+
+ ./wsolver.py
+1st known letter:
+2nd known letter: !c
+3rd known letter: u
+4th known letter: l
+5th known letter:
+Known duds: oi
+Suggestions: cauld, caulk, cauls, crull
+```
+
+Multiple round of hints can be provided in one go. For example, the above hints
+are combined below. Note that known letters (green) override yellow or unknown
+position letters.
+
+```
+ ./wsolver.py
+1st known letter: !l
+2nd known letter: !uc
+3rd known letter: u
+4th known letter: l
+5th known letter:
+Known duds: nhoi
+Suggestions: cauld, caulk, cauls, crull
+```
