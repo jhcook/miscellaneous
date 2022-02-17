@@ -19,12 +19,13 @@
 # Author: Justin Cook
 
 from re import compile
+from collections import Counter
 
 word_length = 5
 
 class WordleSolver():
     
-    dictionary = "words"
+    dictionary = "wwords"
     letters = ['1st', '2nd', '3rd', '4th', '5th']
     srch_str = potential_words = blacked_out = unknown_chars = None
 
@@ -43,6 +44,13 @@ class WordleSolver():
                 self.srch_str[i] = known
         self.blacked_out.add(input("Known duds: "))
     
+    def __letter_frequency(self): 
+        potential_words = {w: Counter(list(w)) for w in self.potential_words}
+        potential_words = {k: v for k, v in sorted(potential_words.items(), 
+                           key=lambda c: [c[1][v] for v in 'chare'],
+                           reverse=True)}
+        self.potential_words = [k for k in potential_words]
+
     def __gen_search(self):
         for i, v in enumerate(self.srch_str):
             if v != '[a-z]': continue
@@ -81,6 +89,7 @@ class WordleSolver():
         self.__user_prompt()
         self.__gen_search()
         self.__search_dictionary()
+        self.__letter_frequency()
 
 if __name__ == "__main__":
     # Create solver

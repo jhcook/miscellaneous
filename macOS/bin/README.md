@@ -35,6 +35,10 @@ known black out or letters known not to be used in the word. The following is a
 real-world example with the answer being _caulk_ in Wordle 242. The dictionary
 can be found on [Github](https://raw.githubusercontent.com/dwyl/english-words/master/words.txt). 
 
+Potential candidates are sorted by [letter frequency](https://artofproblemsolving.com/news/articles/the-math-of-winning-wordle).
+
+A good list of [words on AoPS Online](https://artofproblemsolving.com/texer/vxeinejf) is a great source.
+
 Below, the first word was _lunch_. The hints provided the following suggestions
 and the second word choice was _oculi_. The hints provided fewer suggestions
 with _caulk_ selected as the correct final choice.
