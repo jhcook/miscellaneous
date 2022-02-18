@@ -7,6 +7,8 @@
 #
 # Author: Justin Cook
 
+from sys import argv
+from argparse import ArgumentParser
 from re import (compile, search)
 from collections import Counter
 from random import choice
@@ -14,24 +16,25 @@ from random import choice
 word_length = 5
 
 class Wordle():
-    
-    dictionary = "wwords"
     guess_lst = ['1st', '2nd', '3rd', '4th', '5th', '6th']
-    wordle = game_word = srch_str = user_word = potential_words = blacked_out = unknown_chars = None
+    dictionary = wordle = game_word = srch_str = user_word = None
+    potential_words = blacked_out = unknown_chars = assistance = None
 
-    def __init__(self):
+    def __init__(self, words=None, assistance=False):
         # Get a word six characters in length
+        self.dictionary = words if words else "/usr/share/dict/words"
         with open(self.dictionary, 'r') as d:
             searcher = compile(f"[a-z]{{{word_length}}}")
-            the_words = [line.strip() for line in d.readlines() 
-                         if len(line) == word_length+1]
-            self.game_word = choice(list(filter(searcher.match, the_words)))
+            self.the_words = [line.strip() for line in d.readlines() 
+                              if len(line) == word_length+1]
+            self.game_word = choice(list(filter(searcher.match, self.the_words)))
         self.srch_str = ["[a-z]"] * word_length
         self.potential_words = []
         self.wordle = [None] * word_length
         self.num_guess = 0
         self.blacked_out = set()
         self.unknown_chars = {i: set() for i in range(word_length)}
+        self.assistance = assistance
 
     def __user_guess(self):
         """Prompt the user for input and increment num_guess"""
@@ -39,6 +42,9 @@ class Wordle():
             self.user_word = input("Enter {} word: ".format(self.guess_lst[self.num_guess]))
             if len(self.user_word) != word_length:
                 print("Word must be {} characters.".format(word_length))
+                continue
+            elif self.user_word not in self.the_words:
+                print("That's not a word!")
                 continue
             self.num_guess += 1
             break
@@ -113,13 +119,24 @@ class Wordle():
             print("".join(self.wordle))
             # Print suggested words
             self.__letter_frequency()
-            print("Suggestions: {}".format(", ".join(self.potential_words)))
+            if self.assistance:
+               print("Suggestions: {}".format(", ".join(self.potential_words)))
         else:
             print("Sorry, the answer is: {}".format(self.game_word))
 
 if __name__ == "__main__":
+    # Get command-line arguments
+    parser = ArgumentParser(prog='wordle.py', usage='%(prog)s [options]',
+                            description="The game of Wordle.",
+                            epilog="...is a lot of fun!")
+    parser.add_argument('-a', '--assistance', action='store_true',
+                        help='give word hints')
+    parser.add_argument('-w', '--words', type=str,
+                        help='path to dictionary')
+    args = parser.parse_args()
+
     # Create game
-    wordle = Wordle()
+    wordle = Wordle(**vars(args))
     # Play game
     try:
         wordle.play()
