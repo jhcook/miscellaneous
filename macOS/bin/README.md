@@ -28,7 +28,32 @@ Good job!
 ## Wordle Solver
 
 This tool uses a dictionary of words with hints provided and suggests possible
-answers matching the hints. In the example below, the `!` character is used to
+answers matching the hints. 
+
+```
+./wsolver.py -h
+usage: wsolver.py [options]
+
+A tool to help solve Wordle.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -a FIRST, --first FIRST
+                        1st character hint
+  -b SECOND, --second SECOND
+                        2nd character hint
+  -c THIRD, --third THIRD
+                        3rd character hint
+  -d FOURTH, --fourth FOURTH
+                        4th character hint
+  -e FIFTH, --fifth FIFTH
+                        5th character hint
+  -z DUD, --dud DUD     characters not in word
+
+...just like that!
+```
+
+In the example below, the `!` character is used to
 mark the character as yellow, i.e., used in the word but not that position.
 Green characters are marked as just the letter for that position and duds are
 known black out or letters known not to be used in the word. The following is a
@@ -45,22 +70,22 @@ with _caulk_ selected as the correct final choice.
 
 ```
  ./wsolver.py
-1st known letter: !l
-2nd known letter: !u
-3rd known letter:
-4th known letter: !c
-5th known letter:
+first known letter: !l
+second known letter: !u
+third known letter:
+fourth known letter: !c
+fifth known letter:
 Known duds: nh
-Suggestions: cauld, cauli, caulk, cauls, claut, cleuk, clour, clout, clubs, clued, clues, cluff, clump, could, cruel, crull, oculi, picul, pocul, scaul, sculk, scull, sculp, scult, ticul, ulcer, ulcus, ulmic
+Suggestions: caulk, cruel, ulcer, clued, cloud, clout, clump, could
 
  ./wsolver.py
-1st known letter:
-2nd known letter: !c
-3rd known letter: u
-4th known letter: l
-5th known letter:
+first known letter:
+second known letter: !c
+third known letter: u
+fourth known letter: l
+fifth known letter:
 Known duds: oi
-Suggestions: cauld, caulk, cauls, crull
+Suggestions: caulk
 ```
 
 Multiple round of hints can be provided in one go. For example, the above hints
@@ -69,11 +94,18 @@ position letters.
 
 ```
  ./wsolver.py
-1st known letter: !l
-2nd known letter: !uc
-3rd known letter: u
-4th known letter: l
-5th known letter:
+first known letter: !l
+second known letter: !uc
+third known letter: u
+fourth known letter: l
+fifth known letter:
 Known duds: nhoi
-Suggestions: cauld, caulk, cauls, crull
+Suggestions: caulk
+```
+
+The non-interactive command-line argument version:
+
+```
+ ./wsolver.py -a '!l' -b '!uc' -c u -d l -z nhoi
+Suggestions: caulk
 ```
