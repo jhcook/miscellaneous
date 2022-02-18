@@ -83,6 +83,7 @@ class Wordle():
             print("Good job!")
             return True
         self.__gen_wordle()
+        self.__gen_search()
         self.__search_dictionary()
     
     def __gen_wordle(self):
@@ -100,14 +101,12 @@ class Wordle():
                 self.wordle[i] = "⬛️"
                 self.blacked_out.add(v)
         
+    def __gen_search(self):
         for i, v in enumerate(self.srch_str):
             if not self.unknown_chars[i] or not self.blacked_out: continue
-            chars = []
-            for k in self.unknown_chars:
-                if i == k:
-                    chars.extend(self.unknown_chars[k])
-            if chars or self.blacked_out:
-                self.srch_str[i] = "(?:(?![{}])[a-z]){{1}}".format(''.join(chars+[c for c in self.blacked_out]))
+            if len(self.srch_str[i]) > 1:
+                self.srch_str[i] = "(?:(?![{}])[a-z]){{1}}".format(''.join(
+                        set.union(self.unknown_chars[i], self.blacked_out)))
 
     def play(self):
         while self.num_guess < len(self.guess_lst):
