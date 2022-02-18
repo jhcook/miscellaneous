@@ -15,7 +15,7 @@ word_length = 5
 
 class Wordle():
     
-    dictionary = "/usr/share/dict/words"
+    dictionary = "wwords"
     guess_lst = ['1st', '2nd', '3rd', '4th', '5th', '6th']
     wordle = game_word = srch_str = user_word = potential_words = blacked_out = unknown_chars = None
 
@@ -60,10 +60,14 @@ class Wordle():
                     the_word = word.group()
                     if required_letters: # This should be replaced with lookaheads
                         for res in [c in the_word for c in required_letters]:
-                            if not res: commit = False
+                            if not res: 
+                                commit = False
+                                break
                     if self.blacked_out: # This should be replaced with lookaheads
                         for bo in [c in the_word for c in self.blacked_out]:
-                            if bo: commit = False
+                            if bo:
+                                commit = False
+                                break
                     if commit:
                         self.potential_words.append(the_word)
 
