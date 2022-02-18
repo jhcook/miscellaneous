@@ -101,7 +101,7 @@ class Wordle():
                 self.blacked_out.add(v)
         
         for i, v in enumerate(self.srch_str):
-            if v != '[a-z]': continue
+            if not self.unknown_chars[i] or not self.blacked_out: continue
             chars = []
             for k in self.unknown_chars:
                 if i == k:
