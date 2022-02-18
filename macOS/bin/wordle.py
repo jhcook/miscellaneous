@@ -54,20 +54,14 @@ class Wordle():
             tl = self.unknown_chars.values() 
             required_letters = [item for tl in tl for item in tl]
             for line in d.readlines():
-                word = regex.search(line)
+                word = regex.search(line)                
                 if word:
                     commit = True
                     the_word = word.group()
-                    if required_letters: # This should be replaced with lookaheads
-                        for res in [c in the_word for c in required_letters]:
-                            if not res: 
-                                commit = False
-                                break
-                    if self.blacked_out: # This should be replaced with lookaheads
-                        for bo in [c in the_word for c in self.blacked_out]:
-                            if bo:
-                                commit = False
-                                break
+                    for res in [c in the_word for c in required_letters]:
+                        if not res: 
+                            commit = False
+                            break
                     if commit:
                         self.potential_words.append(the_word)
 
@@ -103,8 +97,8 @@ class Wordle():
         
     def __gen_search(self):
         for i, v in enumerate(self.srch_str):
-            if not self.unknown_chars[i] or not self.blacked_out: continue
-            if len(self.srch_str[i]) > 1:
+            if not self.unknown_chars[i] and not self.blacked_out: continue
+            if len(v) > 1:
                 self.srch_str[i] = "(?:(?![{}])[a-z]){{1}}".format(''.join(
                         set.union(self.unknown_chars[i], self.blacked_out)))
 
