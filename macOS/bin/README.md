@@ -1,6 +1,6 @@
 # Introduction
 
-Here are things you may use on the command line in on macOS. 
+Here are things you may use on the command line on macOS. 
 
 ## Games
 
@@ -8,10 +8,53 @@ Here are things you may use on the command line in on macOS.
 
 It took social media by storm, and then NY Times bought it!
 
-This is my training wheel version for mere mortals.
+This is my ascii terminal version for mere mortals -- or you may like it if 
+you're a command-line warrior.
+
+You can see below the command line and options available. By default,
+it uses the dictionary available on your system. You can download and use
+any dictionary you feel comfortable with. 
 
 ```
- ./wordle.py
+$ ./wordle.py -h
+usage: wordle.py [options]
+
+The game of Wordle.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -a, --assistance      give word hints
+  -w WORDS, --words WORDS
+                        path to dictionary
+
+...is a lot of fun!
+```
+
+Here is an invocation using the standard dictionary -- and it adawes you with
+stimulating intellectual exercise. 
+
+```
+$ ./wordle.py
+Enter 1st word: raise
+⬛️🟨⬛️⬛️🟩
+Enter 2nd word: alone
+🟩⬛️⬛️⬛️🟩
+Enter 3rd word: acute
+🟩⬛️⬛️⬛️🟩
+Enter 4th word: amaze
+🟩⬛️🟩⬛️🟩
+Enter 5th word: awake
+🟩🟨🟩⬛️🟩
+Enter 6th word: adawe
+Good job!
+```
+
+If you want a little help, you can use the assist option to provide a list of
+words that match the hints provided by the success/failure of your current
+guesses.
+
+```
+$ ./wordle.py -a
 Enter 1st word: chase
 ⬛️⬛️🟨🟩⬛️
 Suggestions: salsa, artsy, abyss, amiss, angst, daisy, gassy, lasso, palsy, pansy, patsy, sassy, waist
@@ -25,10 +68,10 @@ Good job!
 ## Wordle Solver
 
 This tool uses a dictionary of words with hints provided and suggests possible
-answers matching the hints. 
+answers matching the hints. It's pretty clever indeed.
 
 ```
-./wsolver.py -h
+$ ./wsolver.py -h
 usage: wsolver.py [options]
 
 A tool to help solve Wordle.
@@ -45,6 +88,9 @@ optional arguments:
                         4th character hint
   -e FIFTH, --fifth FIFTH
                         5th character hint
+  -i, --interactive     interactive session
+  -w WORDS, --words WORDS
+                        path to dictionary
   -z DUD, --dud DUD     characters not in word
 
 ...just like that!
@@ -66,7 +112,7 @@ and the second word choice was _oculi_. The hints provided fewer suggestions
 with _caulk_ selected as the correct final choice.
 
 ```
- ./wsolver.py
+$ ./wsolver.py -i
 first known letter: !l
 second known letter: !u
 third known letter:
@@ -75,7 +121,7 @@ fifth known letter:
 Known duds: nh
 Suggestions: caulk, cruel, ulcer, clued, cloud, clout, clump, could
 
- ./wsolver.py
+$ ./wsolver.py -i
 first known letter:
 second known letter: !c
 third known letter: u
@@ -90,7 +136,7 @@ are combined below. Note that known letters (green) override yellow or unknown
 position letters.
 
 ```
- ./wsolver.py
+$ ./wsolver.py -i
 first known letter: !l
 second known letter: !uc
 third known letter: u
@@ -103,6 +149,6 @@ Suggestions: caulk
 The non-interactive command-line argument version:
 
 ```
- ./wsolver.py -a '!l' -b '!uc' -c u -d l -z nhoi
+$ ./wsolver.py -a '!l' -b '!uc' -c u -d l -z nhoi
 Suggestions: caulk
 ```
