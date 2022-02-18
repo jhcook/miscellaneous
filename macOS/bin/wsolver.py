@@ -62,12 +62,8 @@ class WordleSolver():
     def __gen_search(self):
         for i, v in enumerate(self.srch_str):
             if not self.unknown_chars[i] or not self.blacked_out: continue
-            chars = []
-            for k in self.unknown_chars:
-                if i == k:
-                    chars.extend(self.unknown_chars[k])
-            if chars or self.blacked_out:
-                self.srch_str[i] = "(?:(?![{}])[a-z]){{1}}".format(''.join(chars+[c for c in self.blacked_out]))
+            self.srch_str[i] = "(?:(?![{}])[a-z]){{1}}".format(''.join(
+                        set.union(self.unknown_chars[i], self.blacked_out)))
 
     def __search_dictionary(self):
         """Consult known matched characters `self.srch_str` to narrow down
