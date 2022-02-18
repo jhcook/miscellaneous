@@ -8,6 +8,7 @@
 # Author: Justin Cook
 
 from re import (compile, search)
+from collections import Counter
 from random import choice
 
 word_length = 5
@@ -66,6 +67,13 @@ class Wordle():
                     if commit:
                         self.potential_words.append(the_word)
 
+    def __letter_frequency(self): 
+        potential_words = {w: Counter(list(w)) for w in self.potential_words}
+        potential_words = {k: v for k, v in sorted(potential_words.items(), 
+                           key=lambda c: [c[1][v] for v in 'chare'],
+                           reverse=True)}
+        self.potential_words = [k for k in potential_words]
+
     def __check_guess(self):
         if self.user_word == self.game_word.lower():
             print("Good job!")
@@ -107,6 +115,7 @@ class Wordle():
             # Print Wordle
             print("".join(self.wordle))
             # Print suggested words
+            self.__letter_frequency()
             print("Suggestions: {}".format(", ".join(self.potential_words)))
         else:
             print("Sorry, the answer is: {}".format(self.game_word))
