@@ -54,14 +54,20 @@ words that match the hints provided by the success/failure of your current
 guesses.
 
 ```
-$ ./wordle.py -a
-Enter 1st word: chase
-⬛️⬛️🟨🟩⬛️
-Suggestions: salsa, artsy, abyss, amiss, angst, daisy, gassy, lasso, palsy, pansy, patsy, sassy, waist
-Enter 2nd word: daisy
-⬛️🟩⬛️🟩🟩
-Suggestions: gassy, palsy, pansy, patsy, sassy
-Enter 3rd word: patsy
+$ ./wordle.py -aw wwords
+Enter 1st word: raise
+🟨⬛️⬛️⬛️⬛️
+Suggestions: flour, glory, growl, prowl, world
+Enter 2nd word: flour
+⬛️⬛️🟩⬛️🟨
+Suggestions: thorn, broth, brown, crony, crown
+Enter 3rd word: thorn
+⬛️⬛️🟩🟨⬛️
+Suggestions: crowd, proxy, brood, brook, broom
+Enter 4th word: crowd
+⬛️🟩🟩⬛️🟩
+Suggestions: brood
+Enter 5th word: brood
 Good job!
 ```
 
@@ -89,6 +95,7 @@ optional arguments:
   -e FIFTH, --fifth FIFTH
                         5th character hint
   -i, --interactive     interactive session
+  -v, --verbose         increase verbosity
   -w WORDS, --words WORDS
                         path to dictionary
   -z DUD, --dud DUD     characters not in word
@@ -104,22 +111,24 @@ real-world example with the answer being _caulk_ in Wordle 242. The dictionary
 can be found on [Github](https://raw.githubusercontent.com/dwyl/english-words/master/words.txt). 
 
 Potential candidates are sorted by [letter frequency](https://artofproblemsolving.com/news/articles/the-math-of-winning-wordle).
+[More information](https://www.dictionary.com/e/wordle/) on letter distribution and frequency is used to weigh potential words.
 
 A good list of [words on AoPS Online](https://artofproblemsolving.com/texer/vxeinejf) is a great source.
 
 Below, the first word was _lunch_. The hints provided the following suggestions
 and the second word choice was _oculi_. The hints provided fewer suggestions
-with _caulk_ selected as the correct final choice.
+with _caulk_ selected as the correct final choice. Use `-v` command-line option
+for an exhaustive list of potential words.
 
 ```
-$ ./wsolver.py -i
+ ./wsolver.py -ivw wwords
 first known letter: !l
 second known letter: !u
 third known letter:
 fourth known letter: !c
 fifth known letter:
 Known duds: nh
-Suggestions: caulk, cruel, ulcer, clued, cloud, clout, clump, could
+Suggestions: cruel, ulcer, clued, caulk, clout, cloud, could, clump
 
 $ ./wsolver.py -i
 first known letter:
