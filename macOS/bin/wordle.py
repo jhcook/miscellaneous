@@ -30,7 +30,7 @@ class Wordle():
                                 if len(line) == word_length+1]
                 self.game_word = choice(list(filter(searcher.match,
                                                     self.the_words)))
-        except FileNotFoundError as err:
+        except (FileNotFoundError, PermissionError, OSError) as err:
             self.game_word = err
         self.srch_str = ["[a-z]"] * word_length
         self.potential_words = []
@@ -144,7 +144,7 @@ if __name__ == "__main__":
     if issubclass(type(wordle.game_word), BaseException):
         print(wordle.game_word)
         exit(2)
-        
+
     # Play game
     try:
         wordle.play()
