@@ -78,7 +78,10 @@ class Wordle():
     def __letter_frequency(self): 
         potential_words = {w: Counter(list(w)) for w in self.potential_words}
         potential_words = {k: v for k, v in sorted(potential_words.items(), 
-                           key=lambda c: [c[1][v] for v in 'chare'],
+                           key=lambda c: [len(set(c[1].keys()))] + 
+                                         [c[1][l]*3 for l in 'sea'] + 
+                                         [c[1][l]*2 for l in 'ori'] +
+                                         [c[1][l] for l in 'ltn'],
                            reverse=True)}
         self.potential_words = [k for k in potential_words]
 
@@ -124,7 +127,7 @@ class Wordle():
             # Print suggested words
             self.__letter_frequency()
             if self.assistance:
-               print("Suggestions: {}".format(", ".join(self.potential_words)))
+               print("Suggestions: {}".format(", ".join([w for i, w in enumerate(self.potential_words) if i < 5])))
         else:
             print("Sorry, the answer is: {}".format(self.game_word))
 
