@@ -17,10 +17,10 @@ word_length = 5
 
 class Wordle():
     guess_lst = ['1st', '2nd', '3rd', '4th', '5th', '6th']
-    dictionary = wordle = game_word = srch_str = user_word = None
+    dictionary = wordle = game_word = srch_str = user_word = verbose = None
     potential_words = blacked_out = unknown_chars = assistance = None
 
-    def __init__(self, words=None, assistance=False):
+    def __init__(self, words=None, assistance=False, verbose=False):
         # Get a word six characters in length
         self.dictionary = words if words else "/usr/share/dict/words"
         try:
@@ -39,11 +39,13 @@ class Wordle():
         self.blacked_out = set()
         self.unknown_chars = {i: set() for i in range(word_length)}
         self.assistance = assistance
+        self.verbose = verbose
 
     def __user_guess(self):
         """Prompt the user for input and increment num_guess"""
         while True:
-            self.user_word = input("Enter {} word: ".format(self.guess_lst[self.num_guess]))
+            self.user_word = input("Enter {} word: ".format(
+                                    self.guess_lst[self.num_guess]))
             if len(self.user_word) != word_length:
                 print("Word must be {} characters.".format(word_length))
                 continue
@@ -59,31 +61,44 @@ class Wordle():
         """
         self.potential_words = []
         temp_str = ''.join(self.srch_str)
+        if self.verbose: print("search: {}".format(temp_str))
         regex = compile(rf"^{temp_str}$")
         with open(self.dictionary, 'r') as d:
             tl = self.unknown_chars.values() 
-            required_letters = [item for tl in tl for item in tl]
+            required_letters = set([item for tl in tl for item in tl])
+            if self.verbose: print("known strays: {}".format(required_letters))
             for line in d.readlines():
                 word = regex.search(line)                
                 if word:
                     commit = True
                     the_word = word.group()
+                    if self.verbose > 2: 
+                        print("search found: {}".format(the_word))
                     for res in [c in the_word for c in required_letters]:
-                        if not res: 
+                        if not res:
+                            if self.verbose > 1: 
+                                print("{}: does not contain stray".format(
+                                                                    the_word))
                             commit = False
                             break
                     if commit:
+                        if self.verbose > 2: 
+                            print("committing word: {}".format(the_word))
                         self.potential_words.append(the_word)
 
     def __letter_frequency(self): 
         potential_words = {w: Counter(list(w)) for w in self.potential_words}
+        if self.verbose: 
+            print("suggestions before sort: {}".format(self.potential_words))
         potential_words = {k: v for k, v in sorted(potential_words.items(), 
-                           key=lambda c: [len(set(c[1].keys()))*4] + 
-                                         [c[1][l]*3 for l in 'sea'] + 
+                           key=lambda c: [len(set(c[1].keys()))*4] +
+                                         [c[1][l]*3 for l in 'sea'] +
                                          [c[1][l]*2 for l in 'ori'] +
                                          [c[1][l] for l in 'ltn'],
                            reverse=True)}
         self.potential_words = [k for k in potential_words]
+        if self.verbose: 
+            print("suggestions after sort: {}".format(self.potential_words))
 
     def __check_guess(self):
         if self.user_word == self.game_word.lower():
@@ -126,8 +141,12 @@ class Wordle():
             print("".join(self.wordle))
             # Print suggested words
             self.__letter_frequency()
-            if self.assistance:
-               print("Suggestions: {}".format(", ".join([w for i, w in enumerate(self.potential_words) if i < 5])))
+            if self.verbose:
+                print("Suggestions: {}".format(", ".join(
+                    [w for w in self.potential_words])))
+            elif self.assistance:
+               print("Suggestions: {}".format(", ".join(
+                   [w for i, w in enumerate(self.potential_words) if i < 5])))
         else:
             print("Sorry, the answer is: {}".format(self.game_word))
 
@@ -138,6 +157,8 @@ if __name__ == "__main__":
                             epilog="...is a lot of fun!")
     parser.add_argument('-a', '--assistance', action='store_true',
                         help='give word hints')
+    parser.add_argument('-v', '--verbose', action='count', default=0,
+                        help='increase verbosity')
     parser.add_argument('-w', '--words', type=str,
                         help='path to dictionary')
     args = parser.parse_args()
