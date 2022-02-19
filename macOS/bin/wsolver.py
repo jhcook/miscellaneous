@@ -56,7 +56,7 @@ class WordleSolver():
     def __letter_frequency(self): 
         potential_words = {w: Counter(list(w)) for w in self.potential_words}
         potential_words = {k: v for k, v in sorted(potential_words.items(), 
-                           key=lambda c: [len(set(c[1].keys()))] + 
+                           key=lambda c: [len(set(c[1].keys()))*4] + 
                                          [c[1][l]*3 for l in 'sea'] + 
                                          [c[1][l]*2 for l in 'ori'] +
                                          [c[1][l] for l in 'ltn'],
