@@ -12,7 +12,7 @@
 #
 # Author: Justin Cook
 
-from sys import argv
+from sys import exit
 from argparse import ArgumentParser
 from re import compile
 from collections import Counter
@@ -31,6 +31,11 @@ class WordleSolver():
         self.unknown_chars = {i: set() for i in range(word_length)}
         self.srch_str = ['[a-z]{1}'] * word_length
         self.dictionary = args.words if args.words else "/usr/share/dict/words"
+        try:
+            with open(self.dictionary, 'r') as _:
+                pass
+        except (FileNotFoundError, PermissionError, OSError) as err:
+            self.dictionary = err
         self.interactive = args.interactive
 
     def __user_prompt(self, args):
@@ -115,6 +120,10 @@ if __name__ == "__main__":
 
     # Create solver
     wordle = WordleSolver(args)
+    if issubclass(type(wordle.dictionary), BaseException):
+        print(wordle.dictionary)
+        exit(2)
+
     # Generate words
     try:
         wordle.play(args)
