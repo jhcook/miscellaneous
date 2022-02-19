@@ -56,7 +56,10 @@ class WordleSolver():
     def __letter_frequency(self): 
         potential_words = {w: Counter(list(w)) for w in self.potential_words}
         potential_words = {k: v for k, v in sorted(potential_words.items(), 
-                           key=lambda c: [c[1][v] for v in 'chare'],
+                           key=lambda c: [len(set(c[1].keys()))] + 
+                                         [c[1][l]*3 for l in 'sea'] + 
+                                         [c[1][l]*2 for l in 'ori'] +
+                                         [c[1][l] for l in 'ltn'],
                            reverse=True)}
         self.potential_words = [k for k in potential_words]
 
@@ -112,6 +115,8 @@ if __name__ == "__main__":
                         help='5th character hint')
     parser.add_argument('-i', '--interactive', action='store_true',
                         help='interactive session')
+    parser.add_argument('-v', '--verbose', action='count', default=0,
+                        help='increase verbosity')
     parser.add_argument('-w', '--words', type=str, default='',
                         help='path to dictionary')
     parser.add_argument('-z', '--dud', type=str, default='',
@@ -124,9 +129,11 @@ if __name__ == "__main__":
         print(wordle.dictionary)
         exit(2)
 
-    # Generate words
-    try:
-        wordle.play(args)
-        print("Suggestions: {}".format(', '.join(wordle.potential_words)))
-    except KeyboardInterrupt:
-        pass
+    # Generate and display words
+    wordle.play(args)
+    if not args.verbose:
+        print("Suggestions: {}".format(", ".join([w for i, w in
+                                enumerate(wordle.potential_words) if i < 5])))
+    else:
+        print("Suggestions: {}".format(", ".join([w for w in 
+                                                  wordle.potential_words])))
