@@ -7,7 +7,7 @@
 #
 # Author: Justin Cook
 
-from sys import argv
+from sys import exit
 from argparse import ArgumentParser
 from re import (compile, search)
 from collections import Counter
@@ -23,11 +23,15 @@ class Wordle():
     def __init__(self, words=None, assistance=False):
         # Get a word six characters in length
         self.dictionary = words if words else "/usr/share/dict/words"
-        with open(self.dictionary, 'r') as d:
-            searcher = compile(f"[a-z]{{{word_length}}}")
-            self.the_words = [line.strip() for line in d.readlines() 
-                              if len(line) == word_length+1]
-            self.game_word = choice(list(filter(searcher.match, self.the_words)))
+        try:
+            with open(self.dictionary, 'r') as d:
+                searcher = compile(f"[a-z]{{{word_length}}}")
+                self.the_words = [line.strip() for line in d.readlines() 
+                                if len(line) == word_length+1]
+                self.game_word = choice(list(filter(searcher.match,
+                                                    self.the_words)))
+        except FileNotFoundError as err:
+            self.game_word = err
         self.srch_str = ["[a-z]"] * word_length
         self.potential_words = []
         self.wordle = [None] * word_length
@@ -137,6 +141,10 @@ if __name__ == "__main__":
 
     # Create game
     wordle = Wordle(**vars(args))
+    if issubclass(type(wordle.game_word), BaseException):
+        print(wordle.game_word)
+        exit(2)
+        
     # Play game
     try:
         wordle.play()
