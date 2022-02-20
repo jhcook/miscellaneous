@@ -39,7 +39,7 @@ class Wordle():
         self.blacked_out = set()
         self.unknown_chars = {i: set() for i in range(word_length)}
         self.assistance = assistance
-        self.verbose = verbose
+        self.verbose = print if verbose else lambda *a, **k: None
 
     def __user_guess(self):
         """Prompt the user for input and increment num_guess"""
@@ -66,28 +66,37 @@ class Wordle():
         required_letters = ["(?=.*{})".format(c) for c in rl]
         ss = "(?:{})^{}$".format(''.join(required_letters), temp_str) if \
                                     required_letters else rf"^{temp_str}$"
-        if self.verbose: print("search: {}".format(ss))
+        self.verbose("search: {}".format(ss))
         regex = compile(ss)
         with open(self.dictionary, 'r') as d:
-            if self.verbose: print("known strays: {}".format(required_letters))
+            self.verbose("known strays: {}".format(required_letters))
             for line in d.readlines():
                 word = regex.search(line)                
                 if word:
                     self.potential_words.append(word.group())
 
-    def __letter_frequency(self): 
+    def __letter_frequency(self):
+        """Create a dictionary of words with 'word': Counter('word') as k, v.
+        Sort the dictionary weighing groups of letters by frequency of
+        occurance in the group and distribution of letters in the word.
+        Set `self.potential_words` as the sorted list.
+
+        TODO: the algorithm should be calculated based on the dictionary used
+        """
         potential_words = {w: Counter(list(w)) for w in self.potential_words}
-        if self.verbose: 
-            print("suggestions before sort: {}".format(self.potential_words))
+        self.verbose("suggestions before sort: {}".format(self.potential_words))
         potential_words = {k: v for k, v in sorted(potential_words.items(), 
                            key=lambda c: [len(set(c[1].keys()))*4] +
-                                         [c[1][l]*3 for l in 'sea'] +
-                                         [c[1][l]*2 for l in 'ori'] +
-                                         [c[1][l] for l in 'ltn'],
+                                         [c[1][l]*7 for l in 'aer'] + #sea
+                                         [c[1][l]*6 for l in 'ilost'] + #ori
+                                         [c[1][l]*5 for l in 'n'] + #ltn
+                                         [c[1][l]*4 for l in 'ucy'] +
+                                         [c[1][l]*3 for l in 'hdp'] +
+                                         [c[1][l]*2 for l in 'gmb'] +
+                                         [c[1][l] for l in 'fkw'],
                            reverse=True)}
         self.potential_words = [k for k in potential_words]
-        if self.verbose: 
-            print("suggestions after sort: {}".format(self.potential_words))
+        self.verbose("suggestions after sort: {}".format(self.potential_words))
 
     def __check_guess(self):
         if self.user_word == self.game_word.lower():
@@ -113,6 +122,9 @@ class Wordle():
                 self.blacked_out.add(v)
         
     def __gen_search(self):
+        """Generate a list of search strings injecting the unknown characters
+        and blacked out characters in the regex for each position. 
+        """
         for i, v in enumerate(self.srch_str):
             if not self.unknown_chars[i] and not self.blacked_out: continue
             if len(v) > 1:
@@ -130,10 +142,9 @@ class Wordle():
             print("".join(self.wordle))
             # Print suggested words
             self.__letter_frequency()
-            if self.verbose:
-                print("Suggestions: {}".format(", ".join(
+            self.verbose("Suggestions: {}".format(", ".join(
                     [w for w in self.potential_words])))
-            elif self.assistance:
+            if self.assistance:
                print("Suggestions: {}".format(", ".join(
                    [w for i, w in enumerate(self.potential_words) if i < 5])))
         else:
