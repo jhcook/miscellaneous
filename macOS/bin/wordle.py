@@ -7,7 +7,9 @@
 #
 # Author: Justin Cook
 
+from itertools import count
 from sys import exit
+from string import ascii_lowercase
 from argparse import ArgumentParser
 from re import (compile, search)
 from collections import Counter
@@ -18,16 +20,16 @@ word_length = 5
 class Wordle():
     guess_lst = ['1st', '2nd', '3rd', '4th', '5th', '6th']
     dictionary = wordle = game_word = srch_str = user_word = verbose = None
-    potential_words = blacked_out = unknown_chars = assistance = None
+    potential_words = blacked_out = unknown_chars = assistance = the_words = None
 
     def __init__(self, words=None, assistance=False, verbose=False):
         # Get a word six characters in length
         self.dictionary = words if words else "/usr/share/dict/words"
         try:
             with open(self.dictionary, 'r') as d:
-                searcher = compile(f"[a-z]{{{word_length}}}")
-                self.the_words = [line.strip() for line in d.readlines() 
-                                if len(line) == word_length+1]
+                searcher = compile(f"^[a-z]{{{word_length}}}$")
+                self.the_words = [line.strip() for line in d.readlines()
+                                  if len(line) == word_length+1]
                 self.game_word = choice(list(filter(searcher.match,
                                                     self.the_words)))
         except (FileNotFoundError, PermissionError, OSError, IndexError) as err:
@@ -75,6 +77,38 @@ class Wordle():
                 if word:
                     self.potential_words.append(word.group())
 
+    def __gen_frequency(self):
+        """Calculate letter frequency amost all five-letter words in the
+        dictionary and create an algorithm weighing groups of letters and
+        distribution.
+        """
+        # Count all letters across all words in the dictionary.
+        letter_count = Counter()
+        [letter_count.update(w) for w in self.the_words]
+        self.verbose("letter count: {}".format(letter_count))
+
+        # Group the letters by 10%. Counters are ordered by value.
+        letter_groups = {}
+        i, rank = (0, 0)
+        for letter, count in letter_count.most_common():
+            if rank == 0: rank = count
+            letter_groups.setdefault(i, [])
+            if count <= int(.9*rank):
+                i += 1
+                rank = count
+                letter_groups.setdefault(i, [])
+            letter_groups[i].extend(letter)
+        self.verbose("letter_groups: {}".format(letter_groups))
+
+        self.frequency = lambda c: [len(set(c[1].keys()))*8] + \
+                                   [c[1][l]*7 for l in letter_groups[0]] + \
+                                   [c[1][l]*6 for l in letter_groups[1]] + \
+                                   [c[1][l]*5 for l in letter_groups[2]] + \
+                                   [c[1][l]*4 for l in letter_groups[3]] + \
+                                   [c[1][l]*3 for l in letter_groups[4]] + \
+                                   [c[1][l]*2 for l in letter_groups[5]] + \
+                                   [c[1][l] for l in letter_groups[6]]
+        
     def __letter_frequency(self):
         """Create a dictionary of words with 'word': Counter('word') as k, v.
         Sort the dictionary weighing groups of letters by frequency of
@@ -86,15 +120,7 @@ class Wordle():
         potential_words = {w: Counter(list(w)) for w in self.potential_words}
         self.verbose("suggestions before sort: {}".format(self.potential_words))
         potential_words = {k: v for k, v in sorted(potential_words.items(), 
-                           key=lambda c: [len(set(c[1].keys()))*4] +
-                                         [c[1][l]*7 for l in 'aer'] + #sea
-                                         [c[1][l]*6 for l in 'ilost'] + #ori
-                                         [c[1][l]*5 for l in 'n'] + #ltn
-                                         [c[1][l]*4 for l in 'ucy'] +
-                                         [c[1][l]*3 for l in 'hdp'] +
-                                         [c[1][l]*2 for l in 'gmb'] +
-                                         [c[1][l] for l in 'fkw'],
-                           reverse=True)}
+                           key=self.frequency, reverse=True)}
         self.potential_words = [k for k in potential_words]
         self.verbose("suggestions after sort: {}".format(self.potential_words))
 
@@ -114,7 +140,7 @@ class Wordle():
             if self.game_word[i].lower() == v:
                 self.wordle[i] = "🟩"
                 self.srch_str[i] = v
-            elif search(rf"{v}", self.game_word):
+            elif v in self.game_word:
                 self.wordle[i] = "🟨"
                 self.unknown_chars[i].add(v)
             else:
@@ -132,6 +158,7 @@ class Wordle():
                         set.union(self.unknown_chars[i], self.blacked_out)))
 
     def play(self):
+        self.__gen_frequency()
         while self.num_guess < len(self.guess_lst):
             # Prompt for user try
             self.__user_guess()
