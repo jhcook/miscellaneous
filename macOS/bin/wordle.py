@@ -61,30 +61,19 @@ class Wordle():
         """
         self.potential_words = []
         temp_str = ''.join(self.srch_str)
-        if self.verbose: print("search: {}".format(temp_str))
-        regex = compile(rf"^{temp_str}$")
+        tl = self.unknown_chars.values() 
+        rl = set([item for tl in tl for item in tl])
+        required_letters = ["(?=.*{})".format(c) for c in rl]
+        ss = "(?:{})^{}$".format(''.join(required_letters), temp_str) if \
+                                    required_letters else rf"^{temp_str}$"
+        if self.verbose: print("search: {}".format(ss))
+        regex = compile(ss)
         with open(self.dictionary, 'r') as d:
-            tl = self.unknown_chars.values() 
-            required_letters = set([item for tl in tl for item in tl])
             if self.verbose: print("known strays: {}".format(required_letters))
             for line in d.readlines():
                 word = regex.search(line)                
                 if word:
-                    commit = True
-                    the_word = word.group()
-                    if self.verbose > 2: 
-                        print("search found: {}".format(the_word))
-                    for res in [c in the_word for c in required_letters]:
-                        if not res:
-                            if self.verbose > 1: 
-                                print("{}: does not contain stray".format(
-                                                                    the_word))
-                            commit = False
-                            break
-                    if commit:
-                        if self.verbose > 2: 
-                            print("committing word: {}".format(the_word))
-                        self.potential_words.append(the_word)
+                    self.potential_words.append(word.group())
 
     def __letter_frequency(self): 
         potential_words = {w: Counter(list(w)) for w in self.potential_words}

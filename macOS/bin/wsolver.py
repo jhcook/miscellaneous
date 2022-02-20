@@ -76,21 +76,17 @@ class WordleSolver():
         """
         self.potential_words = []
         temp_str = ''.join(self.srch_str)
-        regex = compile(rf"^{temp_str}$")
+        tl = self.unknown_chars.values() 
+        rl = set([item for tl in tl for item in tl])
+        required_letters = ["(?=.*{})".format(c) for c in rl]
+        ss = "(?:{})^{}$".format(''.join(required_letters), temp_str) if \
+                          required_letters else rf"^{temp_str}$"
+        regex = compile(ss)
         with open(self.dictionary, 'r') as d:
-            tl = self.unknown_chars.values() 
-            required_letters = [item for tl in tl for item in tl]
             for line in d.readlines():
                 word = regex.search(line)
                 if word:
-                    the_word = word.group()
-                    commit = True
-                    for res in [c in the_word for c in required_letters]:
-                        if not res: 
-                            commit = False
-                            break
-                    if commit:
-                        self.potential_words.append(the_word)
+                    self.potential_words.append(word.group())
 
     def play(self, args=None):
         self.__user_prompt(args)
