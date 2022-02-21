@@ -9,7 +9,7 @@
 
 from sys import exit
 from argparse import ArgumentParser
-from re import (compile, search)
+from re import compile
 from collections import Counter
 from random import choice
 
