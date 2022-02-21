@@ -23,17 +23,20 @@ class WordleSolver():
     
     letters = ['first', 'second', 'third', 'fourth', 'fifth']
     dictionary = srch_str = potential_words = blacked_out = None
-    unknown_chars = interactive = None
+    unknown_chars = interactive = study = None
 
     def __init__(self, args):
         self.potential_words = []
         self.blacked_out = set()
         self.unknown_chars = {i: set() for i in range(word_length)}
         self.srch_str = ['[a-z]{1}'] * word_length
+        self.study = args.study
         self.dictionary = args.words if args.words else "/usr/share/dict/words"
         try:
-            with open(self.dictionary, 'r') as _:
-                pass
+            with open(self.dictionary, 'r') as d:
+                searcher = compile(f"^[a-z]{{{word_length}}}$")
+                self.the_words = [line.strip() for line in d.readlines()
+                                  if searcher.search(line)]
         except (FileNotFoundError, PermissionError, OSError) as err:
             self.dictionary = err
         self.interactive = args.interactive
@@ -54,14 +57,47 @@ class WordleSolver():
             [self.blacked_out.add(c) for c in args.dud]
     
     def __letter_frequency(self): 
-        potential_words = {w: Counter(list(w)) for w in self.potential_words}
+        potential_words = {w: Counter(w) for w in self.potential_words}
         potential_words = {k: v for k, v in sorted(potential_words.items(), 
-                           key=lambda c: [len(set(c[1].keys()))*4] + 
-                                         [c[1][l]*3 for l in 'sea'] + 
-                                         [c[1][l]*2 for l in 'ori'] +
-                                         [c[1][l] for l in 'ltn'],
-                           reverse=True)}
+                           key=self.frequency, reverse=True)}
         self.potential_words = [k for k in potential_words]
+
+    def __gen_frequency(self):
+        """Calculate letter frequency amost all five-letter words in the
+        dictionary and create an algorithm weighing groups of letters and
+        distribution.
+        """
+        if not self.study:
+            self.frequency =lambda c: [len(set(c[1].keys()))*4] + \
+                                      [c[1][l]*3 for l in 'sea'] + \
+                                      [c[1][l]*2 for l in 'ori'] + \
+                                      [c[1][l] for l in 'ltn']
+            return
+
+        # Count all letters across all words in the dictionary.
+        letter_count = Counter()
+        [letter_count.update(w) for w in self.the_words]
+
+        # Group the letters by 10%. Counters are ordered by value.
+        letter_groups = {}
+        i, rank = (0, 0)
+        for letter, count in letter_count.most_common():
+            if rank == 0: rank = count
+            letter_groups.setdefault(i, [])
+            if count <= int(.9*rank):
+                i += 1
+                rank = count
+                letter_groups.setdefault(i, [])
+            letter_groups[i].extend(letter)
+
+        self.frequency = lambda c: [len(set(c[1].keys()))*8] + \
+                                   [c[1][l]*7 for l in letter_groups[0]] + \
+                                   [c[1][l]*6 for l in letter_groups[1]] + \
+                                   [c[1][l]*5 for l in letter_groups[2]] + \
+                                   [c[1][l]*4 for l in letter_groups[3]] + \
+                                   [c[1][l]*3 for l in letter_groups[4]] + \
+                                   [c[1][l]*2 for l in letter_groups[5]] + \
+                                   [c[1][l] for l in letter_groups[6]]
 
     def __gen_search(self):
         for i, v in enumerate(self.srch_str):
@@ -92,6 +128,7 @@ class WordleSolver():
         self.__user_prompt(args)
         self.__gen_search()
         self.__search_dictionary()
+        self.__gen_frequency()
         self.__letter_frequency()
 
 if __name__ == "__main__":
@@ -111,6 +148,8 @@ if __name__ == "__main__":
                         help='5th character hint')
     parser.add_argument('-i', '--interactive', action='store_true',
                         help='interactive session')
+    parser.add_argument('-s', '--study', action='store_true',
+                        help='analyze the dictionary for letter frequency')
     parser.add_argument('-v', '--verbose', action='count', default=0,
                         help='increase verbosity')
     parser.add_argument('-w', '--words', type=str, default='',
