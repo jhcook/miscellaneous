@@ -27,9 +27,8 @@ class Wordle():
             with open(self.dictionary, 'r') as d:
                 searcher = compile(f"^[a-z]{{{word_length}}}$")
                 self.the_words = [line.strip() for line in d.readlines()
-                                  if len(line) == word_length+1]
-                self.game_word = choice(list(filter(searcher.match,
-                                                    self.the_words)))
+                                  if searcher.search(line)]
+                self.game_word = choice(self.the_words)
         except (FileNotFoundError, PermissionError, OSError, IndexError) as err:
             self.game_word = err
         self.srch_str = ["[a-z]"] * word_length
@@ -115,7 +114,7 @@ class Wordle():
 
         TODO: the algorithm should be calculated based on the dictionary used
         """
-        potential_words = {w: Counter(list(w)) for w in self.potential_words}
+        potential_words = {w: Counter(w) for w in self.potential_words}
         self.verbose("suggestions before sort: {}".format(self.potential_words))
         potential_words = {k: v for k, v in sorted(potential_words.items(), 
                            key=self.frequency, reverse=True)}
