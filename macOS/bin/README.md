@@ -24,6 +24,7 @@ The game of Wordle.
 optional arguments:
   -h, --help            show this help message and exit
   -a, --assistance      give word hints
+  -v, --verbose         increase verbosity
   -w WORDS, --words WORDS
                         path to dictionary
 
@@ -95,6 +96,7 @@ optional arguments:
   -e FIFTH, --fifth FIFTH
                         5th character hint
   -i, --interactive     interactive session
+  -s, --study           analyze the dictionary for letter frequency
   -v, --verbose         increase verbosity
   -w WORDS, --words WORDS
                         path to dictionary
@@ -113,7 +115,27 @@ can be found on [Github](https://raw.githubusercontent.com/dwyl/english-words/ma
 Potential candidates are sorted by [letter frequency](https://artofproblemsolving.com/news/articles/the-math-of-winning-wordle).
 [More information](https://www.dictionary.com/e/wordle/) on letter distribution and frequency is used to weigh potential words.
 
-A good list of [words on AoPS Online](https://artofproblemsolving.com/texer/vxeinejf) is a great source.
+[Words on AoPS Online](https://artofproblemsolving.com/texer/vxeinejf) is a great source. Using this list, we see grouping of letters. 
+
+As seen below, `a, e, r` are the highest occuring followed by `o,t,l,i,s` and
+`n` on its lonesome. Therefore, `wsolver.py` has the ability to _study_ the
+dictionary and optimise the algorithm. However, the default is to use the most
+common letters of previous official Wordle® results. If you prefer, use the
+`-s` command-line option when using a custom dictionary.
+
+```
+$ for c in {a..z} ; do echo -n "$c: " ; awk "/$c/{print$0}" wwords | wc -l ; done | sort -rk2
+e:     1056
+a:      909
+r:      837
+o:      673
+t:      667
+l:      648
+i:      647
+s:      618
+n:      550
+...
+```
 
 Below, the first word was _lunch_. The hints provided the following suggestions
 and the second word choice was _oculi_. The hints provided fewer suggestions
