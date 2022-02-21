@@ -7,7 +7,6 @@
 #
 # Author: Justin Cook
 
-from itertools import count
 from sys import exit
 from argparse import ArgumentParser
 from re import (compile, search)
