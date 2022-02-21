@@ -105,13 +105,6 @@ optional arguments:
 ...just like that!
 ```
 
-In the example below, the `!` character is used to
-mark the character as yellow, i.e., used in the word but not that position.
-Green characters are marked as just the letter for that position and duds are
-known black out or letters known not to be used in the word. The following is a
-real-world example with the answer being _caulk_ in Wordle 242. The dictionary
-can be found on [Github](https://raw.githubusercontent.com/dwyl/english-words/master/words.txt). 
-
 Potential candidates are sorted by [letter frequency](https://artofproblemsolving.com/news/articles/the-math-of-winning-wordle).
 [More information](https://www.dictionary.com/e/wordle/) on letter distribution and frequency is used to weigh potential words.
 
@@ -137,7 +130,14 @@ n:      550
 ...
 ```
 
-Below, the first word was _lunch_. The hints provided the following suggestions
+In the example below, the `!` character is used to
+mark the character as yellow, i.e., used in the word but not that position.
+Green characters are marked as just the letter for that position and duds are
+known black out or letters known not to be used in the word. The following is a
+real-world example with the answer being _caulk_ in Wordle 242. The dictionary
+can be found on [Github](https://raw.githubusercontent.com/dwyl/english-words/master/words.txt). 
+
+The first word was _lunch_. The hints provided the following suggestions
 and the second word choice was _oculi_. The hints provided fewer suggestions
 with _caulk_ selected as the correct final choice. Use `-v` command-line option
 for an exhaustive list of potential words.
