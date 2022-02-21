@@ -9,7 +9,6 @@
 
 from itertools import count
 from sys import exit
-from string import ascii_lowercase
 from argparse import ArgumentParser
 from re import (compile, search)
 from collections import Counter
