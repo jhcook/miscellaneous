@@ -35,6 +35,13 @@ minikube node add --worker -p calico
 sh install_rancher.sh
 ```
 
+## Install Rancher CLI 
+* https://rancher.com/docs/rancher/v2.6/en/cli/
+
+## Generate API Key
+* https://rancher.com/docs/rancher/v2.6/en/user-settings/api-keys/
+
+
 ## Install / Configure Prometheus and Grafana 
 * https://rancher.com/docs/rancher/v2.6/en/monitoring-alerting/guides/customize-grafana/
 * https://rancher.com/docs/rancher/v2.6/en/monitoring-alerting/guides/persist-grafana/
