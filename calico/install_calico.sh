@@ -10,7 +10,7 @@
 set -o errexit
 
 # Install Tigera operator
-kubectl create -f https://docs.projectcalico.org/archive/v3.19/manifests/tigera-operator.yaml
+kubectl apply -f https://docs.projectcalico.org/archive/v3.19/manifests/tigera-operator.yaml
 
 # Wait on the operator to run
 kubectl rollout status deploy/tigera-operator -n tigera-operator
@@ -28,6 +28,7 @@ spec:
     - cidr: 172.16.0.0/20
       natOutgoing: Enabled
       encapsulation: None
+  typhaMetricsPort: 9093
 EOF
 
 # Wait until the Installation is progressing
