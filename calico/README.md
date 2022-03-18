@@ -25,7 +25,7 @@ sh install_calico.sh
 
 ```
 minikube config set memory 4096 -p calico
-minkube node add --worker -p calico
+minikube node add --worker -p calico
 ```
 
 ## Install Rancher
@@ -37,12 +37,21 @@ sh install_rancher.sh
 
 ## Install / Configure Prometheus and Grafana 
 * https://rancher.com/docs/rancher/v2.6/en/monitoring-alerting/guides/customize-grafana/
+* https://rancher.com/docs/rancher/v2.6/en/monitoring-alerting/guides/persist-grafana/
 * https://www.tigera.io/blog/monitoring-calico-with-prometheus-and-grafana/
 * https://www.tigera.io/blog/how-to-monitor-calicos-ebpf-data-plane-for-proactive-cluster-management/
 * https://projectcalico.docs.tigera.io/maintenance/monitor/monitor-component-metrics
 
 ...
 
+Add the services necessary and create the Prometheus service monitors for
+Calico.
+
+```
+sh configure_prometheus.sh
+...
+kubectl apply -f calico-grafana-dashboards.yaml
+```
 
 ## Load Testing with Locust
 * https://github.com/joakimhew/locust-kubernetes
