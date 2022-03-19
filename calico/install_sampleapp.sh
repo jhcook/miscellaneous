@@ -15,7 +15,7 @@ kubectl rollout status -n yaobank deployment/database
 # Test the app
 while :
 do
-  curl 198.19.0.1:30180 2>/dev/null && break
+  curl "$(minikube ip -p calico)":30180 2>/dev/null && break
   sleep 1
 done
 
