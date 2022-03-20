@@ -1,7 +1,8 @@
 #!/usr/bin/env sh
 
 # Install the app
-kubectl apply -f https://raw.githubusercontent.com/tigera/ccol1/main/yaobank.yaml
+#kubectl apply -f https://raw.githubusercontent.com/tigera/ccol1/main/yaobank.yaml
+kubectl apply -f yaobank.yaml
 
 # Wait on the customer microservice
 kubectl rollout status -n yaobank deployment/customer
