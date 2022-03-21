@@ -18,3 +18,5 @@ helm install rancher rancher-stable/rancher \
   --namespace cattle-system \
   --set hostname=rancher.test \
   --set bootstrapPassword=admin
+
+  kubectl rollout status deploy/rancher -n cattle-system
