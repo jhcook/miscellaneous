@@ -10,7 +10,7 @@
 set -o errexit
 
 # Install Tigera operator
-kubectl apply -f https://docs.projectcalico.org/archive/v3.19/manifests/tigera-operator.yaml
+kubectl apply -f https://projectcalico.docs.tigera.io/manifests/tigera-operator.yaml
 
 # Wait on the operator to run
 kubectl rollout status deploy/tigera-operator -n tigera-operator
@@ -25,10 +25,22 @@ spec:
   calicoNetwork:
     containerIPForwarding: Enabled
     ipPools:
-    - cidr: 172.16.0.0/20
+    - blockSize: 26
+      cidr: 172.16.0.0/20
       natOutgoing: Enabled
-      encapsulation: None
+      encapsulation: VXLANCrossSubnet
+      nodeSelector: all()
   typhaMetricsPort: 9093
+
+---
+
+# This section configures the Calico API server.
+# For more information, see: https://projectcalico.docs.tigera.io/v3.22/reference/installation/api#operator.tigera.io/v1.APIServer
+apiVersion: operator.tigera.io/v1
+kind: APIServer 
+metadata: 
+  name: default 
+spec: {}
 EOF
 
 # Wait until the Installation is progressing
