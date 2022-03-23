@@ -4,19 +4,31 @@
 #
 # Author: Justin Cook
 
+set -o errexit
+
+# Apply cert-manager crds
 kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.5.1/cert-manager.crds.yaml
+
+# Add the appropriate Helm repos and update
 helm repo add jetstack https://charts.jetstack.io
+helm repo add rancher-stable https://releases.rancher.com/server-charts/stable
 helm repo update
+
+# Install cert-manager
 helm install cert-manager jetstack/cert-manager \
   --namespace cert-manager \
   --create-namespace \
   --version v1.5.1
-helm repo add rancher-stable https://releases.rancher.com/server-charts/stable
-helm repo update
-kubectl create namespace cattle-system
+
+# Create the cattle-system namespace
+kubectl create namespace cattle-system --dry-run=client -o yaml | \
+  kubectl apply -f -
+
+# Install Rancher
 helm install rancher rancher-stable/rancher \
   --namespace cattle-system \
   --set hostname=rancher.test \
   --set bootstrapPassword=admin
 
-  kubectl rollout status deploy/rancher -n cattle-system
+# Wait for Rancher to become available
+kubectl rollout status deploy/rancher -n cattle-system
