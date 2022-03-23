@@ -10,7 +10,7 @@
 minikube --addons ingress,ingress-dns,metrics-server \
          --network-plugin=cni \
          --extra-config=kubeadm.pod-network-cidr=172.16.0.0/20 \
-         --memory=6g \
+         --memory=8g \
          --kubernetes-version=v1.21.7 \
          --nodes=3 \
          -p calico \
