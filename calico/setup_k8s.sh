@@ -13,7 +13,8 @@ minikube --addons ingress,ingress-dns,metrics-server \
          --memory=6g \
          --kubernetes-version=v1.23.4 \
          --nodes=3 \
-         -p rancher \
+         --insecure-registry="ghcr.io" \
+         -p mars \
          start
 
 if [ ! -d "/etc/resolver" ]
@@ -21,9 +22,9 @@ then
   sudo mkdir /etc/resolver
 fi
 
-sudo bash -c "cat - > /etc/resolver/minikube-mars <<EOF
-domain mars
-nameserver $(minikube ip -p rancher)
+sudo bash -c "cat - > /etc/resolver/minikube-test <<EOF
+domain test
+nameserver $(minikube ip -p calico)
 search_order 1
 timeout 5
 EOF
