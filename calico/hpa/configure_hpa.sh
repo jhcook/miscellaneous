@@ -35,16 +35,16 @@ spec:
   scaleTargetRef:
     kind: Deployment
     name: recommendationservice
-minReplicaCount: 1
-maxReplicaCount: 20
-cooldownPeriod: 30
-pollingInterval: 1
-triggers:
-- type: prometheus
-  metadata:
-    serverAddress: http://boutique.mars
-    metricName: nginx_connections_active_keda
-    query: |
-      sum(avg_over_time(nginx_ingress_nginx_connections_active{app="ingress-nginx"}[1m]))
-    threshold: "30"
+  minReplicaCount: 1
+  maxReplicaCount: 20
+  cooldownPeriod: 30
+  pollingInterval: 1
+  triggers:
+  - type: prometheus
+    metadata:
+      serverAddress: http://boutique.mars
+      metricName: nginx_connections_active_keda
+      query: |
+        sum(avg_over_time(nginx_ingress_nginx_connections_active{app="ingress-nginx"}[1m]))
+      threshold: "30"
 EOF
