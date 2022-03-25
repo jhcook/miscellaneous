@@ -5,7 +5,7 @@ metadata:
   namespace: default
 spec:
   rules:
-  - host: "boutique.mars"
+  - host: "boutique.test"
     http:
       paths:
         - pathType: Prefix
