@@ -78,6 +78,14 @@ Calico.
 sh monitoring/configure_prometheus.sh
 ...
 kubectl apply -f monitoring/calico-grafana-dashboards.yaml
+kubectl apply -f monitoring/nginx-grafana-dashboards.yaml
+```
+
+## Enable Horizontal Pod Autoscaling
+* https://www.nginx.com/blog/microservices-march-reduce-kubernetes-latency-with-autoscaling/
+
+```
+sh hpa/configure_hpa.sh
 ```
 
 ## Load Testing with Locust
