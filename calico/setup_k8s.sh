@@ -14,7 +14,7 @@ minikube --addons ingress,ingress-dns,metrics-server \
          --kubernetes-version=v1.23.4 \
          --nodes=3 \
          --insecure-registry="ghcr.io" \
-         -p mars \
+         -p calico \
          start
 
 if [ ! -d "/etc/resolver" ]
