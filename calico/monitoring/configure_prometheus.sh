@@ -75,13 +75,15 @@ kubectl patch svc ingress-nginx-controller -n ingress-nginx \
 kubectl patch svc ingress-nginx-controller -n ingress-nginx \
   -p='{"metadata": {"labels": {"k8s-app": "ingress-nginx"}}}'
 kubectl patch svc ingress-nginx-controller -n ingress-nginx \
-  -p='{"spec": {"template": {"spec": {"ports": [{"name": "prometheus","port": "10254"}]}}}}'
+  -p='{"spec": {"type": "NodePort","ports": [{"name": "prometheus","port": 10254,"targetPort": "prometheus"}]}}'
 
 # Patch ingress-nginx-controller deployment
 kubectl patch deploy ingress-nginx-controller -n ingress-nginx \
   -p='{"metadata": {"annotations": {"prometheus.io/scrape": "true"}}}'
 kubectl patch deploy ingress-nginx-controller -n ingress-nginx \
   -p='{"metadata": {"annotations": {"prometheus.io/port": "10254"}}}'
+kubectl patch deploy ingress-nginx-controller -n ingress-nginx --type='json' \
+  -p='[{"op": "add", "path": "/spec/template/spec/containers/0/ports/-", "value": {"name": "prometheus","containerPort": 10254}}]'
 
 kubectl apply -f - <<EOF
 apiVersion: monitoring.coreos.com/v1
