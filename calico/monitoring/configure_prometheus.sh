@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Create services and a servicemonitor for Prometheus to capture metrics
+# Create/patch services and add a ServiceMonitor for Prometheus to capture metrics
 #
 # References:
 # https://www.tigera.io/blog/how-to-monitor-calicos-ebpf-data-plane-for-proactive-cluster-management/
@@ -85,6 +85,7 @@ kubectl patch deploy ingress-nginx-controller -n ingress-nginx \
 kubectl patch deploy ingress-nginx-controller -n ingress-nginx --type='json' \
   -p='[{"op": "add", "path": "/spec/template/spec/containers/0/ports/-", "value": {"name": "prometheus","containerPort": 10254}}]'
 
+# Create ServiceMonitor for each service created/patched above
 kubectl apply -f - <<EOF
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
