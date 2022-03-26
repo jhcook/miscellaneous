@@ -24,6 +24,9 @@ do
   kubectl rollout status "${deploy}" -n keda
 done
 
+# Create an Ingress for the Boutique®
+kubectl apply -f hpa/frontend-ingress.yaml
+
 # Create the ScaledObject(s)
 PROMHOST=$(kubectl get svc rancher-monitoring-prometheus -n \
            cattle-monitoring-system -o jsonpath='{.spec.clusterIP}')
