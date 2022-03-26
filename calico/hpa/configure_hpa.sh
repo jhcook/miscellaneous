@@ -16,7 +16,7 @@ kubectl create namespace keda --dry-run=client -o yaml | \
   kubectl apply -f -
 
 # Install Keda
-helm install keda kedacore/keda --namespace keda
+helm upgrade --install keda kedacore/keda --namespace keda
 
 # Wait for all the deployments to become available
 for deploy in $(kubectl get deploy -n keda -o name)
@@ -24,7 +24,10 @@ do
   kubectl rollout status "${deploy}" -n keda
 done
 
-# Create the ScaledObject
+# Create the ScaledObject(s)
+PROMHOST=$(kubectl get svc rancher-monitoring-prometheus -n \
+           cattle-monitoring-system -o jsonpath='{.spec.clusterIP}')
+
 kubectl apply -f - <<EOF
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
@@ -42,9 +45,33 @@ spec:
   triggers:
   - type: prometheus
     metadata:
-      serverAddress: http://boutique.mars
-      metricName: nginx_connections_active_keda
+      serverAddress: http://${PROMHOST}:9090
+      metricName: nginx_ingress_controller_requests
       query: |
-        sum(avg_over_time(nginx_ingress_nginx_connections_active{app="ingress-nginx"}[1m]))
+        sum(rate(nginx_ingress_controller_requests[30s]))
+      threshold: "30"
+EOF
+
+kubectl apply -f - <<EOF
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: cartservice-scale
+  namespace: default
+spec:
+  scaleTargetRef:
+    kind: Deployment
+    name: cartservice
+  minReplicaCount: 1
+  maxReplicaCount: 20
+  cooldownPeriod: 30
+  pollingInterval: 1
+  triggers:
+  - type: prometheus
+    metadata:
+      serverAddress: http://${PROMHOST}:9090
+      metricName: nginx_ingress_controller_requests
+      query: |
+        sum(rate(nginx_ingress_controller_requests[30s]))
       threshold: "30"
 EOF
