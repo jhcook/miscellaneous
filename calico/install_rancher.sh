@@ -15,7 +15,7 @@ helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
 helm repo update
 
 # Install cert-manager
-helm install cert-manager jetstack/cert-manager \
+helm upgrade --install cert-manager jetstack/cert-manager \
   --namespace cert-manager \
   --create-namespace \
   --version v1.5.1
@@ -25,9 +25,9 @@ kubectl create namespace cattle-system --dry-run=client -o yaml | \
   kubectl apply -f -
 
 # Install Rancher
-helm install rancher rancher-latest/rancher \
+helm upgrade --install rancher rancher-latest/rancher \
   --namespace cattle-system \
-  --set hostname=rancher.mars \
+  --set hostname=rancher.test \
   --set bootstrapPassword=admin \
   --version 2.6.4-rc13
 
