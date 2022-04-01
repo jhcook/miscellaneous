@@ -18,7 +18,7 @@ helm repo update
 helm upgrade --install cert-manager jetstack/cert-manager \
   --namespace cert-manager \
   --create-namespace \
-  --version v1.5.1
+  --version v1.7.1
 
 # Create the cattle-system namespace
 kubectl create namespace cattle-system --dry-run=client -o yaml | \
@@ -29,7 +29,7 @@ helm upgrade --install rancher rancher-latest/rancher \
   --namespace cattle-system \
   --set hostname=rancher.test \
   --set bootstrapPassword=admin \
-  --version 2.6.4-rc13
+  --version 2.6.4
 
 # Wait for Rancher to become available
 kubectl rollout status deploy/rancher -n cattle-system
