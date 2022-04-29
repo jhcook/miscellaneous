@@ -4,6 +4,8 @@
 # Main iterates through the platform word dictionary and tests each using the
 # very complicated isPalindrome algorithm.
 #
+# References: https://stackoverflow.com/questions/10140281/how-to-find-out-whether-a-file-is-at-its-eof
+#
 # Author: Justin Cook
 
 def isPalindrome(word):
