@@ -6,4 +6,5 @@ fi
 
 # The following trap for USR1 is used to source the environment after an IP
 # address change.
+# https://superuser.com/questions/1042748/periodically-source-shell-profile
 trap "source ~/.bash_profile" USR1
