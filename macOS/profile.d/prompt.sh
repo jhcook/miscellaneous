@@ -24,7 +24,7 @@ CP_TTY=${CP_TTY:5}
 if [ `/usr/bin/id -u` -eq 0 ]; then
         CP_TEXT=$DK_RED
 else
-        CP_TEXT=$DK_PUR
+        CP_TEXT=$DK_CYN
 fi
 
 
