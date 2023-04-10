@@ -10,7 +10,6 @@
 
 set -o nounset
 set -o pipefail
-set -x
 
 SSH_AGENT_LOCKFILE="/var/tmp/`basename $0 | cut -f 1 -d '.'`.lock"
 
@@ -45,7 +44,7 @@ do
     >&2 echo "Stale `basename $0` lockfile: ${SSH_AGENT_LOCKFILE}" 
     exit
   else
-    mkdir -p "${SSH_AGENT_LOCKFILE}" 2>/dev/null && break || /bin/true
+    mkdir -p "${SSH_AGENT_LOCKFILE}" 2>/dev/null && break || /usr/bin/true
     sleep .25
   fi
 done
