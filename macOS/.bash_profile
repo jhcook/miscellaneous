@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
 # Set the local WIFICIDR for use in proxy settings
-while [ -z "${wifiaddr:-}" ] && [ -z "${wifinmsk:-}" ]
+wifiaddr=""
+wifinmsk=""
+while [ -z "${wifiaddr:-}" ] || [ -z "${wifinmsk:-}" ]
 do
   wifiaddr="$(ipconfig getifaddr en1)"
   wifinmsk="$(ipconfig getoption en1 subnet_mask)"
