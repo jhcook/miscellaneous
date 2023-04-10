@@ -15,7 +15,6 @@
 # * https://stackoverflow.com/questions/11532144/how-to-detect-ip-address-change-on-osx-programmatically-in-c-or-c
 # * https://thispointer.com/python-check-if-a-process-is-running-by-name-and-find-its-process-id-pid/
 
-
 from Foundation import *
 from SystemConfiguration import *
 from os import kill
@@ -26,10 +25,13 @@ def callback(store, keys, info):
   for key in keys:
     listOfProcessIds = findProcessIdByName('bash')
     if len(listOfProcessIds) > 0:
-       for elem in listOfProcessIds:
-           processID = elem['pid']
-           kill(processID, SIGUSR1)
-
+      for elem in listOfProcessIds:
+        processID = elem['pid']
+        try:
+          kill(processID, SIGUSR1)
+        except PermissionError:
+          pass
+			
 def findProcessIdByName(processName):
     '''
     Create a list of all running process PIDs whose name contains the string
