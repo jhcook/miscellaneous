@@ -29,7 +29,7 @@ def callback(store, keys, info):
         processID = elem['pid']
         try:
           kill(processID, SIGUSR1)
-        except PermissionError:
+        except (PermissionError, ProcessLookupError):
           pass
 			
 def findProcessIdByName(processName):
