@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.10
+#!/usr/bin/env python3.11
 #
 # This code receives notification of a local IP address change and sends
 # SIGUSR1 to all Bash processes. Bash needs to trap USR1 accordingly.
@@ -45,7 +45,7 @@ def findProcessIdByName(processName):
            if processName.lower() in pinfo['name'].lower() :
                listOfProcessObjects.append(pinfo)
        except (psutil.NoSuchProcess, psutil.AccessDenied,
-               psutil.ZombieProcess):
+               psutil.ZombieProcess, AttributeError):
            pass
     return listOfProcessObjects
 
