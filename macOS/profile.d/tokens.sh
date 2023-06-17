@@ -1,2 +1,7 @@
 export ATLAS_TOKEN=""
 export VAGRANTCLOUD_TOKEN=""
+export DOCKERHUB_TOKEN=""
+export rhn_username=""
+export rhn_password=""
+export RHSM_USERNAME="${rhn_username}"
+export RHSM_PASSWORD="${rhn_password}"
