@@ -10,3 +10,4 @@ source_profile() {
     fi
 }
 
+source_profile
