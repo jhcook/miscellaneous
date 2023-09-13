@@ -1,0 +1,77 @@
+#!/bin/bash
+# Ping an IP and print metrics to the screen every five minutes.
+#
+# Use control+\ (on US/UK keyboards) to reset metrics. It resets metrics at
+# midnight.
+#
+# Author: Justin Cook <jhcook@secnix.com>
+
+set -o nounset
+
+trap "exit" SIGINT
+trap "" SIGUSR1
+trap "echo 'reset_count" SIGQUIT
+
+IP=$1
+
+reset_count() {
+  OVERALL_SUCCESS=0
+  OVERALL_FAILURE=0
+  SUCCESS=0
+  FAILURE=0
+  STARTEPOCH=$(date +'%s')
+  #TMROWEPOCH=$(date -d 'tomorrow 00:00:00' '+%s')
+  TMROWEPOCH=$(date -v+1d -v0H -v0M -v0S +'%s')
+  INCREMENTR=0
+  SUCCESS_PERCENTAGE=0
+  FAILURE_PERCENTAGE=0
+  OVERALL_SUCCESS_PERCENTAGE=0
+  OVERALL_FAILURE_PERCENTAGE=0
+}
+
+print_count() {
+  echo "Success: ${SUCCESS_PERCENTAGE}%, Fail: ${FAILURE_PERCENTAGE}%"
+  echo "Since $(date -r ${STARTEPOCH} +"%Y-%m-%d %H:%M:%S"):"
+  echo "Success: ${OVERALL_SUCCESS_PERCENTAGE}%, Fail: ${OVERALL_FAILURE_PERCENTAGE}%"
+}
+
+
+reset_count
+print_count
+
+while true; do
+  ping -c 1 -W 3 $IP > /dev/null
+  sleep 1
+  printf "."
+  if [ $? -eq 0 ]; then
+      SUCCESS=$((SUCCESS + 1))
+  else
+      FAILURE=$((FAILURE + 1))
+  fi
+  CURRENTEPOCH=$(date +"%s")
+  if [ $(( (CURRENTEPOCH - STARTEPOCH) / 60)) -gt ${INCREMENTR} ]; then
+      # Last minute stats
+      TOTAL=$((SUCCESS + FAILURE))
+      SUCCESS_PERCENTAGE=$(echo "scale=2; ${SUCCESS} * 100 / ${TOTAL}" | bc)
+      FAILURE_PERCENTAGE=$(echo "scale=2; ${FAILURE} * 100 / ${TOTAL}" | bc)
+      # Overall stats 
+      OVERALL_SUCCESS=$((OVERALL_SUCCESS + SUCCESS))
+      OVERALL_FAILURE=$((OVERALL_FAILURE + FAILURE))
+      OVERALL_TOTAL=$((OVERALL_SUCCESS + OVERALL_FAILURE))
+      OVERALL_SUCCESS_PERCENTAGE=$(echo "scale=2; \
+        ${OVERALL_SUCCESS} * 100 / ${OVERALL_TOTAL}" | bc)
+      OVERALL_FAILURE_PERCENTAGE=$(echo "scale=2; \
+        ${OVERALL_FAILURE} * 100 / ${OVERALL_TOTAL}" | bc)
+      # Reset five minute counter
+      SUCCESS=0
+      FAILURE=0
+      # Print stats
+      echo -e "\033[2K\033[1A\033[2K\033[1A\033[2K\033[1A\033[2K\033[1A"
+      print_count
+    let INCREMENTR=INCREMENTR+1
+    if [ $CURRENTEPOCH -gt $TMROWEPOCH ]; then
+      reset_count
+    fi
+  fi
+done
+
