@@ -1,0 +1,95 @@
+#!/bin/sh
+#
+# Make Docker convenient
+#
+# Author: Justin Cook
+
+set -o errexit
+set -o nounset
+
+# Default values
+IMAGE="redhat/ubi9"
+HOSTNAME="linux"
+SHELL="sh"
+
+usage() {
+    printf "Usage: %s [OPTIONS]\n" "$0"
+    printf "Options:\n"
+    printf "  -d    Delete the container on exit\n"
+    printf "  -h    Help\n"
+    printf "  -i    Set the image (default: $IMAGE)\n"
+    printf "  -n    Set the container name (default: $HOSTNAME)\n"
+    printf "  -r    Recreate the container if it exists\n"
+    printf "  -s    Shell to request on container (default: $SHELL)\n"
+}
+
+RECREATE=0
+DELETE=0
+while getopts "dhi:n:rs:" opt; do
+  case $opt in
+    n)
+      HOSTNAME="$OPTARG"
+      ;;
+    i)
+      IMAGE="$OPTARG"
+      ;;
+    h)
+      usage
+      exit 0
+      ;;
+    r)
+      RECREATE=1
+      ;;
+    d)
+      DELETE=1
+      ;;
+    s)
+      SHELL="$OPTARG"
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+# Check if Docker is installed
+if ! command -v docker >/dev/null 2>&1
+then
+    echo "Docker could not be found"
+    exit 2
+fi
+
+# Check if the container exists
+if docker container inspect "$HOSTNAME" >/dev/null 2>&1; then
+    if [ $RECREATE -eq 1 ]; then
+        echo "Container '$HOSTNAME' exists, recreating it..."
+        docker rm -f "$HOSTNAME"
+        docker run -it --name "$HOSTNAME" --hostname "$HOSTNAME" "$IMAGE" "$SHELL"
+    else
+        # If it exists, check if it's running
+        CSTATE="$(docker container inspect --format '{{.State.Status}}' "$HOSTNAME")"
+        if [ "${CSTATE}" = "running" ]; then
+            echo "Container '$HOSTNAME' is already running."
+            docker exec -it "$HOSTNAME" "$SHELL"
+        elif [ "${CSTATE}" = "exited" ]; then
+            echo "Container '$HOSTNAME' is stopped, starting it..."
+            docker start "$HOSTNAME"
+            docker exec -it "$HOSTNAME" "$SHELL"
+        else
+            echo "Unknown state: $CSTATE"
+            exit 4
+        fi
+    fi
+else
+    echo "Container '$HOSTNAME' does not exist, creating it..."
+    docker run -it --name "$HOSTNAME" --hostname "$HOSTNAME" "$IMAGE" "$SHELL"
+fi
+
+# Delete the container on exit if the delete option is set
+if [ $DELETE -eq 1 ]; then
+    echo "Deleting container '$HOSTNAME' on exit..."
+    docker rm -f "$HOSTNAME"
+fi
+
