@@ -18,9 +18,11 @@ usage() {
     printf "  -d    Delete the container on exit\n"
     printf "  -h    Help\n"
     printf "  -i    Set the image (default: $IMAGE)\n"
+    printf "  -k    Kill $HOSTNAME\n"
     printf "  -n    Set the container name (default: $HOSTNAME)\n"
     printf "  -r    Recreate the container if it exists\n"
     printf "  -s    Shell to request on container (default: $SHELL)\n"
+    printf "  -v    Verbose output\n"
 }
 
 kill_and_start() {
@@ -30,7 +32,8 @@ kill_and_start() {
 
 RECREATE=0
 DELETE=0
-while getopts "dhi:n:rs:" opt; do
+KILLIT=0
+while getopts "dhi:kn:rs:v" opt; do
   case $opt in
     n)
       HOSTNAME="$OPTARG"
@@ -42,6 +45,9 @@ while getopts "dhi:n:rs:" opt; do
       usage
       exit 0
       ;;
+    k)
+      KILLIT=1
+      ;;
     r)
       RECREATE=1
       ;;
@@ -50,6 +56,9 @@ while getopts "dhi:n:rs:" opt; do
       ;;
     s)
       SHELL="$OPTARG"
+      ;;
+    v)
+      set -o xtrace
       ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
@@ -69,7 +78,10 @@ fi
 # Check if the container exists
 if docker container inspect "$HOSTNAME" >/dev/null 2>&1; then
     RUNNING_IMAGE="$(docker inspect --format "{{.Config.Image}}" $HOSTNAME)"
-    if [ $RECREATE -eq 1 ]; then
+    if [ $KILLIT -eq 1 ]; then
+        docker rm -f "$HOSTNAME" >/dev/null 2>&1
+        exit 0
+    elif [ $RECREATE -eq 1 ]; then
         echo "Container '$HOSTNAME' exists, recreating it..."
         kill_and_start
     elif [ "$RUNNING_IMAGE" != "$IMAGE" ]; then
@@ -90,6 +102,9 @@ if docker container inspect "$HOSTNAME" >/dev/null 2>&1; then
             exit 4
         fi
     fi
+elif [ $KILLIT -eq 1 ]; then
+    echo "Container '$HOSTNAME' not found"
+    exit 2
 else
     echo "Container '$HOSTNAME' does not exist, creating it..."
     docker run -it --name "$HOSTNAME" --hostname "$HOSTNAME" "$IMAGE" "$SHELL"
@@ -98,6 +113,6 @@ fi
 # Delete the container on exit if the delete option is set
 if [ $DELETE -eq 1 ]; then
     echo "Deleting container '$HOSTNAME' on exit..."
-    docker rm -f "$HOSTNAME"
+    docker rm -f "$HOSTNAME" >/dev/null 2>&1
 fi
 
