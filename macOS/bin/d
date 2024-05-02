@@ -23,6 +23,11 @@ usage() {
     printf "  -s    Shell to request on container (default: $SHELL)\n"
 }
 
+kill_and_start() {
+    docker rm -f "$HOSTNAME"
+    docker run -it --name "$HOSTNAME" --hostname "$HOSTNAME" "$IMAGE" "$SHELL"
+}
+
 RECREATE=0
 DELETE=0
 while getopts "dhi:n:rs:" opt; do
@@ -63,10 +68,13 @@ fi
 
 # Check if the container exists
 if docker container inspect "$HOSTNAME" >/dev/null 2>&1; then
+    RUNNING_IMAGE="$(docker inspect --format "{{.Config.Image}}" $HOSTNAME)"
     if [ $RECREATE -eq 1 ]; then
         echo "Container '$HOSTNAME' exists, recreating it..."
-        docker rm -f "$HOSTNAME"
-        docker run -it --name "$HOSTNAME" --hostname "$HOSTNAME" "$IMAGE" "$SHELL"
+        kill_and_start
+    elif [ "$RUNNING_IMAGE" != "$IMAGE" ]; then
+        echo "Container '$HOSTNAME' is running '$RUNNING_IMAGE', restarting."
+        kill_and_start
     else
         # If it exists, check if it's running
         CSTATE="$(docker container inspect --format '{{.State.Status}}' "$HOSTNAME")"
