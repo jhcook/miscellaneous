@@ -1,8 +1,36 @@
+
 Vagrant.configure("2") do |config|
-  config.vm.provider "docker" do |d|
-    d.image = "debian:12"
-    d.name = "debian12"
-    d.cmd = ["tail", "-f", "/dev/null"]
-    d.privileged = true
+  config.vm.define "debian12" do
+    config.vm.provider "docker" do |d|
+      d.image = "debian:12"
+      d.name = "debian12"
+      d.ports = ["2222:22"]
+      #d.has_ssh = true
+      d.vagrant_machine = "debian12"
+      d.cmd = ["tail", "-f", "/dev/null"]
+      d.privileged = true
+    end
+  end
+
+  provscript = <<~'SCRIPT'
+    set -x
+    export DEBIAN_FRONTEND=noninteractive
+    apt update
+    apt install -y apt-utils
+    apt install -y openssh-server procps iproute2 sudo
+    mkdir /var/run/sshd
+    echo 'root:root' | chpasswd
+    sed -i "s/#PermitRootLogin prohibit-password/PermitRootLogin yes/" /etc/ssh/sshd_config
+    sed -i "s/UsePAM yes/UsePAM no/" /etc/ssh/sshd_config
+    useradd -m vagrant
+    echo 'vagrant:vagrant' | chpasswd
+    usermod -aG sudo vagrant
+    echo "vagrant ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/vagrant
+    service ssh start
+  SCRIPT
+
+  config.trigger.after :up do |trigger|
+    trigger.info = "Provisioning container"
+    trigger.run = {inline: "docker exec -i debian12 /bin/bash -c '#{provscript}'"}
   end
 end
