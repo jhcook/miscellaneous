@@ -1,0 +1,8 @@
+Vagrant.configure("2") do |config|
+  config.vm.provider "docker" do |d|
+    d.image = "debian:12"
+    d.name = "debian12"
+    d.cmd = ["tail", "-f", "/dev/null"]
+    d.privileged = true
+  end
+end
