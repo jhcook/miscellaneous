@@ -9,9 +9,22 @@
 #
 # It's accessible using the docker cli:
 # `docker exec -it debian12 bash`
-
+#
 # It is accessible using `vagrant docker-exec`:
 # `vagrant docker-exec -it debian12 -- bash`
+#
+# It is possible to commit the Vagrant container as an image
+# and it will create faster on `vagrant halt` and `vagrant destroy`
+# followed by `vagrant up` as it will no longer need to install
+# and configure.
+# $ vagrant up
+# ...
+# $ docker commit debian12 debian:12
+# ...
+# $ vagrant destroy -f
+# ...
+# $ vagrant up
+# ... # This is much less and faster.
 #
 # Author: Justin Cook
 
@@ -41,6 +54,7 @@ Vagrant.configure("2") do |config|
     hostname #{cname}
     sed "s/$randomName/#{cname}/g" /etc/hosts > /tmp/hosts
     cp -f /tmp/hosts /etc/hosts
+    if [ -f /root/built.txt ]; then service ssh start ; exit ; fi
     apt update
     apt install -y apt-utils
     apt install -y openssh-server procps iproute2 sudo less vim
@@ -52,13 +66,14 @@ Vagrant.configure("2") do |config|
     echo 'vagrant:vagrant' | chpasswd
     usermod -aG sudo vagrant
     echo "vagrant ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/vagrant
-    if ! [ -d /home/vagrant/.ssh ] ; then
+    if ! [ -d /home/vagrant/.ssh ]; then
       mkdir /home/vagrant/.ssh
       chown vagrant:vagrant /home/vagrant/.ssh
       chmod 0700 /home/vagrant/.ssh
     fi
     ssh-keygen -y -f /mnt/#{user}/.vagrant.d/insecure_private_key > /home/vagrant/.ssh/authorized_keys
     service ssh start
+    echo $(date) > /root/built.txt
   SCRIPT
 
   config.trigger.after :up do |trigger|
