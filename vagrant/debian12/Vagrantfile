@@ -1,31 +1,63 @@
+# This is a Vagrantfile that uses the docker provider to
+# provision a Debian 12 container, set the hostnam to debian12,
+# set passwords, and install ssh and other utilities.
+#
+# After `vagrant up` one can `vagrant ssh`.
+# $ vagrant ssh
+# vagrant@debian12:~$ sudo whoami
+# root
+#
+# It's accessible using the docker cli:
+# `docker exec -it debian12 bash`
+
+# It is accessible using `vagrant docker-exec`:
+# `vagrant docker-exec -it debian12 -- bash`
+#
+# Author: Justin Cook
 
 Vagrant.configure("2") do |config|
-  config.vm.define "debian12" do
+  cname = "debian12"
+  image = "debian:12"
+  user = ENV['USER']
+  homedir = ENV['HOME']
+  config.vm.provider "docker"
+  config.vm.define "#{cname}" do
     config.vm.provider "docker" do |d|
-      d.image = "debian:12"
-      d.name = "debian12"
+      d.image = "#{image}"
+      d.name = "#{cname}"
       d.ports = ["2222:22"]
       #d.has_ssh = true
-      d.vagrant_machine = "debian12"
+      d.vagrant_machine = "#{cname}"
       d.cmd = ["tail", "-f", "/dev/null"]
+      d.volumes = ["#{homedir}:/mnt/#{user}"]
       d.privileged = true
     end
   end
 
-  provscript = <<~'SCRIPT'
+  provscript = <<-SCRIPT
     set -x
     export DEBIAN_FRONTEND=noninteractive
+    randomName="$(hostname)"
+    hostname #{cname}
+    sed "s/$randomName/#{cname}/g" /etc/hosts > /tmp/hosts
+    cp -f /tmp/hosts /etc/hosts
     apt update
     apt install -y apt-utils
-    apt install -y openssh-server procps iproute2 sudo
+    apt install -y openssh-server procps iproute2 sudo less vim
     mkdir /var/run/sshd
     echo 'root:root' | chpasswd
     sed -i "s/#PermitRootLogin prohibit-password/PermitRootLogin yes/" /etc/ssh/sshd_config
     sed -i "s/UsePAM yes/UsePAM no/" /etc/ssh/sshd_config
-    useradd -m vagrant
+    useradd -m -s /bin/bash vagrant
     echo 'vagrant:vagrant' | chpasswd
     usermod -aG sudo vagrant
     echo "vagrant ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/vagrant
+    if ! [ -d /home/vagrant/.ssh ] ; then
+      mkdir /home/vagrant/.ssh
+      chown vagrant:vagrant /home/vagrant/.ssh
+      chmod 0700 /home/vagrant/.ssh
+    fi
+    ssh-keygen -y -f /mnt/#{user}/.vagrant.d/insecure_private_key > /home/vagrant/.ssh/authorized_keys
     service ssh start
   SCRIPT
 
