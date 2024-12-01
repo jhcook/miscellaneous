@@ -1,6 +1,7 @@
 # This is a Vagrantfile that uses the docker provider to
-# provision a Debian 12 container, set the hostnam to debian12,
-# set passwords, and install ssh and other utilities.
+# provision a Debian 12 container, set the hostname to debian12,
+# set passwords, and install ssh, dotnet-sdk-8.0,
+# and other utilities.
 #
 # After `vagrant up` one can `vagrant ssh`.
 # $ vagrant ssh
@@ -29,10 +30,16 @@
 # Author: Justin Cook
 
 Vagrant.configure("2") do |config|
+  # top-level variables
   cname = "debian12"
   image = "debian:12"
   user = ENV['USER']
   homedir = ENV['HOME']
+
+  # use the docker provider and create a container named cname
+  # forward 2222:22 to enable `vagrant ssh`
+  # follow /dev/null so the container never exits
+  # use amd64 platform to support dotnet
   config.vm.provider "docker"
   config.vm.define "#{cname}" do
     config.vm.provider "docker" do |d|
@@ -42,22 +49,40 @@ Vagrant.configure("2") do |config|
       #d.has_ssh = true
       d.vagrant_machine = "#{cname}"
       d.cmd = ["tail", "-f", "/dev/null"]
+      d.create_args = ["--platform", "linux/amd64"]
       d.volumes = ["#{homedir}:/mnt/#{user}"]
       d.privileged = true
     end
   end
 
+  # The provision script below is used in a trigger below to configure
+  # the container from the host
   provscript = <<-SCRIPT
-    set -x
+    # Use verbose output
+    set -o xtrace
+
+    # Set this var to disable interactive apt installs
     export DEBIAN_FRONTEND=noninteractive
+
+    # Set the hostname to the desired `cname`
     randomName="$(hostname)"
     hostname #{cname}
     sed "s/$randomName/#{cname}/g" /etc/hosts > /tmp/hosts
     cp -f /tmp/hosts /etc/hosts
+
+    # Check if the built.txt file exists. If so start ssh and exit
+    # as already configured
     if [ -f /root/built.txt ]; then service ssh start ; exit ; fi
+
+    # Install the desired packages
     apt update
-    apt install -y apt-utils
-    apt install -y openssh-server procps iproute2 sudo less vim
+    apt install -y apt-utils curl
+    curl https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb --output /tmp/packages-microsoft-prod.deb
+    dpkg -i /tmp/packages-microsoft-prod.deb
+    apt update
+    apt install -y openssh-server procps iproute2 sudo less vim dotnet-sdk-8.0
+
+    # Configure SSH and add/configure users and passwords
     mkdir /var/run/sshd
     echo 'root:root' | chpasswd
     sed -i "s/#PermitRootLogin prohibit-password/PermitRootLogin yes/" /etc/ssh/sshd_config
@@ -71,11 +96,18 @@ Vagrant.configure("2") do |config|
       chown vagrant:vagrant /home/vagrant/.ssh
       chmod 0700 /home/vagrant/.ssh
     fi
+
+    # Authorise the Vagrant insecure public key to enable `vagrant ssh`
     ssh-keygen -y -f /mnt/#{user}/.vagrant.d/insecure_private_key > /home/vagrant/.ssh/authorized_keys
+
+    # Start ssh, clean up, and create the built.txt file
     service ssh start
+    rm -fr /tmp/*
+    apt clean all
     echo $(date) > /root/built.txt
   SCRIPT
 
+  # Run provscript defined above in docker exec on the host
   config.trigger.after :up do |trigger|
     trigger.info = "Provisioning container"
     trigger.run = {inline: "docker exec -i debian12 /bin/bash -c '#{provscript}'"}
